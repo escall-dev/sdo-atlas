@@ -1,0 +1,17 @@
+{
+    "name": "sdo/atlas",
+    "description": "SDO-ATLAS - Schools Division Office Authority to Travel and Locator Approval System",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "phpoffice/phpword": "^0.18"
+    },
+    "autoload": {
+        "psr-4": {
+            "SDO\\Atlas\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true
+    }
+}

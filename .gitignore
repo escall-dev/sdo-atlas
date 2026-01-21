@@ -1,0 +1,40 @@
+# Dependencies
+/vendor/
+/vendor-bin/
+/composer.lock
+/composer.phar
+
+# Environment & config
+.env
+.env.*
+/.env.local
+/config/*_local.php
+/config/*.env.php
+/config/*.local.php
+/config/*.secret.php
+/config/*.bak
+
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+*.tmp
+Thumbs.db
+.DS_Store
+
+# Logs & cache
+/storage/
+*.log
+*.cache
+*.tmp
+logs/
+admin/logs/
+
+# Misc
+node_modules/
+*.zip
+*.tar
+*.gz
+*.7z
