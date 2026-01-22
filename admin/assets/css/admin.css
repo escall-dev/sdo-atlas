@@ -1708,6 +1708,7 @@ textarea.form-control {
     width: 100%;
     max-width: 480px;
     max-height: 90vh;
+    height: auto;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -1724,12 +1725,22 @@ textarea.form-control {
     max-width: 640px;
 }
 
+.modal form {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 100%;
+    overflow: hidden;
+}
+
 .modal-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 20px 24px;
     border-bottom: 1px solid var(--border-color);
+    flex-shrink: 0;
 }
 
 .modal-header h3 {
@@ -1768,7 +1779,29 @@ textarea.form-control {
 
 .modal-body {
     padding: 24px;
-    overflow-y: auto;
+    overflow-y: scroll !important;
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: calc(90vh - 140px); /* Account for header (~70px) and footer (~70px) */
+}
+
+/* Ensure scrollbar is always visible in modal */
+.modal-body::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+    background: var(--text-muted);
+    border-radius: 4px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
 }
 
 .modal-footer {
@@ -1778,6 +1811,7 @@ textarea.form-control {
     padding: 16px 24px;
     border-top: 1px solid var(--border-color);
     background: var(--bg-secondary);
+    flex-shrink: 0;
 }
 
 /* Alert Messages */

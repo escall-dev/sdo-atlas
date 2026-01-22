@@ -340,9 +340,7 @@ function auth() {
 function url($path) {
     $auth = auth();
     return $auth->getUrlWithToken(ADMIN_URL . $path);
-}
-
-/**
+}/**
  * Helper function to get token for forms
  */
 function tokenField() {

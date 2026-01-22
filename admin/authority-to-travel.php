@@ -259,14 +259,9 @@ if ($type === 'national') {
                 <h3><i class="fas fa-tasks"></i> Actions</h3>
             </div>
             <div class="detail-card-body">
-                <form method="POST" action="" style="margin-bottom: 10px;">
-                    <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
-                    <input type="hidden" name="action" value="approve">
-                    <input type="hidden" name="id" value="<?php echo $viewData['id']; ?>">
-                    <button type="submit" class="btn btn-success btn-block" onclick="return confirm('Approve this Authority to Travel?');">
-                        <i class="fas fa-check"></i> Approve
-                    </button>
-                </form>
+                <button type="button" class="btn btn-success btn-block" style="margin-bottom: 10px;" onclick="openApproveModal(<?php echo $viewData['id']; ?>)">
+                    <i class="fas fa-check"></i> Approve
+                </button>
                 
                 <button type="button" class="btn btn-danger btn-block" onclick="showRejectModal(<?php echo $viewData['id']; ?>)">
                     <i class="fas fa-times"></i> Reject
@@ -307,6 +302,35 @@ if ($type === 'national') {
     </div>
 </div>
 
+<!-- Approve Modal -->
+<div class="modal-overlay" id="approveModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-check-circle" style="margin-right: 8px; color: var(--success);"></i> Approve Authority to Travel</h3>
+            <button class="modal-close" type="button" onclick="closeApproveModal()">&times;</button>
+        </div>
+        <form method="POST" action="">
+            <div class="modal-body">
+                <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
+                <input type="hidden" name="action" value="approve">
+                <input type="hidden" name="id" id="approveId" value="">
+
+                <p style="margin-bottom: 10px;">
+                    Are you sure you want to approve this Authority to Travel?
+                </p>
+                <div style="padding: 12px 14px; background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-light);">
+                    <div style="font-weight: 700;" id="approveTrackingNo"></div>
+                    <div style="color: var(--text-muted); font-size: 0.9rem;" id="approveEmployeeName"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeApproveModal()">Cancel</button>
+                <button type="submit" class="btn btn-success"><i class="fas fa-check"></i> Yes, approve</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Reject Modal -->
 <div class="modal-overlay" id="rejectModal">
     <div class="modal">
@@ -334,6 +358,23 @@ if ($type === 'national') {
 </div>
 
 <script>
+function openApproveModal(id) {
+    document.getElementById('approveId').value = id;
+    // Pull details from current page if available
+    var trackingNoEl = document.querySelector('.ref-number');
+    if (trackingNoEl) document.getElementById('approveTrackingNo').textContent = trackingNoEl.textContent.trim();
+    // Find employee name specifically
+    var nameLabel = Array.from(document.querySelectorAll('.detail-item label')).find(l => l.textContent.trim() === 'Employee Name');
+    if (nameLabel && nameLabel.parentElement) {
+        var span = nameLabel.parentElement.querySelector('span');
+        if (span) document.getElementById('approveEmployeeName').textContent = span.textContent.trim();
+    }
+    document.getElementById('approveModal').classList.add('active');
+}
+function closeApproveModal() {
+    document.getElementById('approveModal').classList.remove('active');
+}
+
 function showRejectModal(id) {
     document.getElementById('rejectId').value = id;
     document.getElementById('rejectModal').classList.add('active');
