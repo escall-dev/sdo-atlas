@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    if ($postAction === 'approve' && $auth->isApprover()) {
+    if ($postAction === 'approve' && $auth->canApproveLS()) {
         $id = $_POST['id'];
         $ls = $lsModel->getById($id);
         
@@ -60,10 +60,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $positionMap = [
                 'ASDS' => 'Assistant Schools Division Superintendent',
                 'AOV'  => 'Administrative Officer V',
+                'AO V' => 'Administrative Officer V',
                 'SDS'  => 'Schools Division Superintendent',
                 'SUPERADMIN' => 'Superadmin',
+                'OSDS_CHIEF' => 'Administrative Officer V',
             ];
-            $approverPosition = $positionMap[$posKey] ?? ($posRaw ?: $currentUser['role_name'] ?? '');
+            // Also check role_name for position
+            $approverPosition = $positionMap[$posKey] ?? $positionMap[$currentUser['role_name']] ?? ($posRaw ?: $currentUser['role_name'] ?? '');
 
             $lsModel->approve($id, $auth->getUserId(), $currentUser['full_name'], $approverPosition);
             $auth->logActivity('approve', 'locator_slip', $id, 'Approved Locator Slip: ' . $ls['ls_control_no']);
@@ -71,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    if ($postAction === 'reject' && $auth->isApprover()) {
+    if ($postAction === 'reject' && $auth->canApproveLS()) {
         $id = $_POST['id'];
         $reason = $_POST['rejection_reason'] ?? null;
         $ls = $lsModel->getById($id);
@@ -230,7 +233,7 @@ $formData = [
     
     <div class="complaint-sidebar">
         <!-- Actions -->
-        <?php if ($viewData['status'] === 'pending' && $auth->isApprover()): ?>
+        <?php if ($viewData['status'] === 'pending' && $auth->canApproveLS()): ?>
         <div class="detail-card action-card">
             <div class="detail-card-header">
                 <h3><i class="fas fa-tasks"></i> Actions</h3>

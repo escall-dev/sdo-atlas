@@ -2,6 +2,7 @@
 /**
  * Authority to Travel Management Page
  * SDO ATLAS - View, create, and approve AT requests
+ * With Unit-Based and Role-Based Routing Logic
  */
 
 require_once __DIR__ . '/../includes/header.php';
@@ -17,19 +18,22 @@ $type = $_GET['type'] ?? 'local'; // local, national, personal
 $message = '';
 $error = '';
 
+// Get current user info for routing
+$currentRoleId = $currentUser['role_id'];
+$currentRoleName = $currentUser['role_name'];
+$currentOffice = $currentUser['employee_office'] ?? '';
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $postAction = $_POST['action'] ?? '';
     
     if ($postAction === 'create') {
         try {
-            $category = $_POST['travel_category'];
-            $scope = ($category === 'official') ? $_POST['travel_scope'] : null;
+            $category = $_POST['travel_category'] ?? 'official';
+            $scope = ($category === 'official') ? ($_POST['travel_scope'] ?? null) : null;
             
-            $trackingNo = $trackingService->generateATNumber($category, $scope);
-            
+            // Prepare data for validation
             $data = [
-                'at_tracking_no' => $trackingNo,
                 'employee_name' => $_POST['employee_name'],
                 'employee_position' => $_POST['employee_position'],
                 'permanent_station' => $_POST['permanent_station'],
@@ -47,47 +51,75 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'user_id' => $auth->getUserId()
             ];
             
-            $id = $atModel->create($data);
-            $auth->logActivity('create', 'authority_to_travel', $id, 'Created AT: ' . $trackingNo);
+            // Validate submission
+            $validation = $atModel->validateSubmission($data, $currentRoleId);
             
-            $message = 'Authority to Travel filed successfully! Tracking Number: ' . $trackingNo;
-            $action = '';
+            if ($validation['redirect'] === 'locator_slips') {
+                $error = 'Same-day travel should be filed as a Locator Slip. Please use the Locator Slip form instead.';
+            } elseif (!$validation['valid']) {
+                $error = implode('. ', $validation['errors']);
+            } else {
+                // Generate tracking number
+                $trackingNo = $trackingService->generateATNumber($category, $scope);
+                $data['at_tracking_no'] = $trackingNo;
+                
+                // Create with routing
+                $id = $atModel->create($data, $currentRoleId, $currentOffice);
+                $auth->logActivity('CREATE_AT', 'AT', $id, 'Created AT: ' . $trackingNo);
+                
+                $message = 'Authority to Travel filed successfully! Tracking Number: ' . $trackingNo;
+                $action = '';
+            }
         } catch (Exception $e) {
             $error = 'Failed to create Authority to Travel: ' . $e->getMessage();
         }
     }
     
-    if ($postAction === 'approve' && $auth->isApprover()) {
+    // Handle approve action (by Unit Heads or ASDS)
+    if ($postAction === 'approve' && ($auth->isASDS() || $auth->isUnitHead())) {
         $id = $_POST['id'];
         $at = $atModel->getById($id);
         
-        if ($at && $at['status'] === 'pending') {
-            // Expand common acronyms to full titles for approver position
-            $posRaw = trim($currentUser['employee_position'] ?? '');
-            $posKey = strtoupper($posRaw);
-            $positionMap = [
-                'ASDS' => 'Assistant Schools Division Superintendent',
-                'AOV'  => 'Administrative Officer V',
-                'SDS'  => 'Schools Division Superintendent',
-                'SUPERADMIN' => 'Superadmin',
-            ];
-            $approverPosition = $positionMap[$posKey] ?? ($posRaw ?: $currentUser['role_name'] ?? '');
+        if ($at && in_array($at['status'], ['pending', 'recommended'])) {
+            $availableAction = $atModel->getAvailableAction($at, $currentRoleId, $currentRoleName);
             
-            $atModel->approve($id, $auth->getUserId(), $currentUser['full_name'], $currentUser['full_name']);
-            $auth->logActivity('approve', 'authority_to_travel', $id, 'Approved AT: ' . $at['at_tracking_no']);
-            $message = 'Authority to Travel approved successfully!';
+            if ($availableAction === 'approve') {
+                $atModel->approve($id, $auth->getUserId(), $currentUser['full_name'], $currentRoleId);
+                $auth->logActivity('APPROVE_AT', 'AT', $id, 'Approved AT: ' . $at['at_tracking_no']);
+                $message = 'Authority to Travel approved successfully!';
+            } else {
+                $error = 'You do not have permission to approve this request.';
+            }
         }
     }
     
-    if ($postAction === 'reject' && $auth->isApprover()) {
+    // Handle executive approve action (by Superadmin/SDS)
+    if ($postAction === 'executive_approve' && $auth->isSuperAdmin()) {
+        $id = $_POST['id'];
+        $at = $atModel->getById($id);
+        
+        if ($at && !in_array($at['status'], ['approved', 'rejected'])) {
+            $atModel->executiveApprove($id, $auth->getUserId(), $currentUser['full_name']);
+            $auth->logActivity('APPROVE_AT', 'AT', $id, 'Executive approved AT: ' . $at['at_tracking_no']);
+            $message = 'Authority to Travel approved by SDS (Executive Override)!';
+        }
+    }
+    
+    // Handle reject action (by any approver)
+    if ($postAction === 'reject' && $auth->canActOnAT()) {
         $id = $_POST['id'];
         $reason = $_POST['rejection_reason'] ?? null;
         $at = $atModel->getById($id);
         
-        if ($at && $at['status'] === 'pending') {
-            $atModel->reject($id, $auth->getUserId(), $reason);
-            $auth->logActivity('reject', 'authority_to_travel', $id, 'Rejected AT: ' . $at['at_tracking_no']);
-            $message = 'Authority to Travel rejected.';
+        if ($at && !in_array($at['status'], ['approved', 'rejected'])) {
+            // Check if user can act on this AT
+            if ($atModel->canUserActOn($at, $currentRoleId, $currentRoleName)) {
+                $atModel->reject($id, $auth->getUserId(), $reason);
+                $auth->logActivity('REJECT_AT', 'AT', $id, 'Rejected AT: ' . $at['at_tracking_no']);
+                $message = 'Authority to Travel rejected.';
+            } else {
+                $error = 'You do not have permission to reject this request.';
+            }
         }
     }
 }
@@ -101,14 +133,41 @@ if ($viewId) {
     } elseif ($auth->isEmployee() && $viewData['user_id'] != $auth->getUserId()) {
         $error = 'You do not have permission to view this request.';
         $viewData = null;
+    } elseif ($auth->isUnitHead()) {
+        // Unit heads can only view requests from their supervised offices (or their own)
+        $supervisedOffices = UNIT_HEAD_OFFICES[$currentRoleId] ?? [];
+        if ($viewData['user_id'] != $auth->getUserId() && 
+            !in_array($viewData['requester_office'], $supervisedOffices) &&
+            $viewData['current_approver_role'] !== $currentRoleName) {
+            $error = 'You do not have permission to view this request.';
+            $viewData = null;
+        }
     }
 }
 
-// Get list data
+// Get list data based on role
 $filters = [];
 if ($auth->isEmployee()) {
+    // Regular employees see only their own requests
     $filters['user_id'] = $auth->getUserId();
+} elseif ($auth->isUnitHead()) {
+    // Unit heads see only requests from their supervised offices
+    $supervisedOffices = UNIT_HEAD_OFFICES[$currentRoleId] ?? [];
+    if (!empty($supervisedOffices)) {
+        $filters['supervised_offices'] = $supervisedOffices;
+    }
+    // Show only pending in their queue by default
+    if (empty($_GET['show_all'])) {
+        $filters['current_approver_role'] = $currentRoleName;
+    }
+} elseif ($auth->isASDS()) {
+    // ASDS sees requests in final stage (their queue) by default
+    if (empty($_GET['show_all'])) {
+        $filters['current_approver_role'] = $currentRoleName;
+    }
 }
+// Superadmin sees everything (no filters applied)
+
 if (!empty($_GET['status'])) {
     $filters['status'] = $_GET['status'];
 }
@@ -227,7 +286,7 @@ if ($type === 'national') {
             </div>
         </div>
         
-        <?php if ($viewData['status'] !== 'pending'): ?>
+        <?php if ($viewData['status'] !== 'pending' && $viewData['status'] !== 'recommended'): ?>
         <!-- Approval/Rejection Details -->
         <div class="detail-card">
             <div class="detail-card-header">
@@ -241,6 +300,10 @@ if ($type === 'national') {
                     <div class="detail-item">
                         <label>Recommending Authority</label>
                         <span><?php echo htmlspecialchars($viewData['recommending_authority_name'] ?: '-'); ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Recommendation Date</label>
+                        <span><?php echo $viewData['recommending_date'] ? date('F j, Y', strtotime($viewData['recommending_date'])) : '-'; ?></span>
                     </div>
                     <div class="detail-item">
                         <label>Approving Authority</label>
@@ -260,19 +323,55 @@ if ($type === 'national') {
             </div>
         </div>
         <?php endif; ?>
+        
+        <?php if ($viewData['status'] === 'recommended'): ?>
+        <!-- Recommendation Details (Pending Final Approval) -->
+        <div class="detail-card">
+            <div class="detail-card-header">
+                <h3><i class="fas fa-thumbs-up"></i> Recommendation Details</h3>
+            </div>
+            <div class="detail-card-body">
+                <div class="detail-grid">
+                    <div class="detail-item">
+                        <label>Recommending Authority</label>
+                        <span><?php echo htmlspecialchars($viewData['recommending_authority_name'] ?: '-'); ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Recommendation Date</label>
+                        <span><?php echo $viewData['recommending_date'] ? date('F j, Y', strtotime($viewData['recommending_date'])) : '-'; ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Status</label>
+                        <span class="status-badge status-pending">Awaiting ASDS Final Approval</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
     
     <div class="complaint-sidebar">
+        <?php 
+        // Determine available action for current user
+        $availableAction = $atModel->getAvailableAction($viewData, $currentRoleId, $currentRoleName);
+        ?>
+        
         <!-- Actions -->
-        <?php if ($viewData['status'] === 'pending' && $auth->isApprover()): ?>
+        <?php if ($availableAction): ?>
         <div class="detail-card action-card">
             <div class="detail-card-header">
                 <h3><i class="fas fa-tasks"></i> Actions</h3>
             </div>
             <div class="detail-card-body">
+                <?php if ($availableAction === 'approve'): ?>
                 <button type="button" class="btn btn-success btn-block" style="margin-bottom: 10px;" onclick="openApproveModal(<?php echo $viewData['id']; ?>)">
                     <i class="fas fa-check"></i> Approve
                 </button>
+                <?php elseif ($availableAction === 'executive_approve'): ?>
+                <button type="button" class="btn btn-success btn-block" style="margin-bottom: 10px;" onclick="openApproveModal(<?php echo $viewData['id']; ?>)">
+                    <i class="fas fa-gavel"></i> Executive Approve (SDS)
+                </button>
+                <?php endif; ?>
                 
                 <button type="button" class="btn btn-danger btn-block" onclick="showRejectModal(<?php echo $viewData['id']; ?>)">
                     <i class="fas fa-times"></i> Reject
@@ -280,6 +379,31 @@ if ($type === 'national') {
             </div>
         </div>
         <?php endif; ?>
+        
+        <!-- Routing Status -->
+        <div class="detail-card">
+            <div class="detail-card-header">
+                <h3><i class="fas fa-route"></i> Routing Status</h3>
+            </div>
+            <div class="detail-card-body">
+                <div class="detail-item">
+                    <label>Current Stage</label>
+                    <span><?php 
+                        echo AuthorityToTravel::getStatusLabel(
+                            $viewData['status'], 
+                            $viewData['routing_stage'], 
+                            $viewData['current_approver_role']
+                        ); 
+                    ?></span>
+                </div>
+                <?php if ($viewData['current_approver_role']): ?>
+                <div class="detail-item">
+                    <label>Pending With</label>
+                    <span class="status-badge"><?php echo htmlspecialchars($viewData['current_approver_role']); ?></span>
+                </div>
+                <?php endif; ?>
+            </div>
+        </div>
         
         <?php if ($viewData['status'] === 'approved'): ?>
         <div class="detail-card">
@@ -323,12 +447,17 @@ if ($type === 'national') {
         <form method="POST" action="">
             <div class="modal-body">
                 <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
-                <input type="hidden" name="action" value="approve">
+                <input type="hidden" name="action" value="<?php echo $auth->isSuperAdmin() ? 'executive_approve' : 'approve'; ?>">
                 <input type="hidden" name="id" id="approveId" value="">
 
                 <p style="margin-bottom: 10px;">
                     Are you sure you want to approve this Authority to Travel?
                 </p>
+                <?php if ($auth->isSuperAdmin()): ?>
+                <p style="margin-bottom: 10px; color: var(--warning);">
+                    <i class="fas fa-exclamation-triangle"></i> This is an Executive Override (SDS approval).
+                </p>
+                <?php endif; ?>
                 <div style="padding: 12px 14px; background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-light);">
                     <div style="font-weight: 700;" id="approveTrackingNo"></div>
                     <div style="color: var(--text-muted); font-size: 0.9rem;" id="approveEmployeeName"></div>
@@ -400,10 +529,22 @@ function closeRejectModal() {
 <div class="page-header">
     <div class="result-count">
         <?php echo $totalRequests; ?> Travel Request<?php echo $totalRequests !== 1 ? 's' : ''; ?>
+        <?php if ($auth->canActOnAT() && empty($_GET['show_all'])): ?>
+            <span class="text-muted">(In Your Queue)</span>
+        <?php endif; ?>
     </div>
-    <button type="button" class="btn btn-primary" onclick="openNewModal()">
-        <i class="fas fa-plus"></i> New Travel Request
-    </button>
+    <div class="header-actions">
+        <?php if ($auth->canActOnAT()): ?>
+        <a href="<?php echo navUrl('/authority-to-travel.php' . (empty($_GET['show_all']) ? '?show_all=1' : '')); ?>" 
+           class="btn btn-secondary btn-sm">
+            <i class="fas fa-<?php echo empty($_GET['show_all']) ? 'list' : 'inbox'; ?>"></i>
+            <?php echo empty($_GET['show_all']) ? 'View All' : 'My Queue'; ?>
+        </a>
+        <?php endif; ?>
+        <button type="button" class="btn btn-primary" onclick="openNewModal()">
+            <i class="fas fa-plus"></i> New Travel Request
+        </button>
+    </div>
 </div>
 
 <!-- Filter Bar -->
@@ -440,6 +581,7 @@ function closeRejectModal() {
             <select name="status" class="filter-select">
                 <option value="">All Status</option>
                 <option value="pending" <?php echo ($_GET['status'] ?? '') === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                <option value="recommended" <?php echo ($_GET['status'] ?? '') === 'recommended' ? 'selected' : ''; ?>>Recommended</option>
                 <option value="approved" <?php echo ($_GET['status'] ?? '') === 'approved' ? 'selected' : ''; ?>>Approved</option>
                 <option value="rejected" <?php echo ($_GET['status'] ?? '') === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
             </select>
@@ -499,7 +641,29 @@ function closeRejectModal() {
                     <td>
                         <div class="cell-primary"><?php echo date('M j', strtotime($at['date_from'])); ?> - <?php echo date('M j, Y', strtotime($at['date_to'])); ?></div>
                     </td>
-                    <td><?php echo getStatusBadge($at['status']); ?></td>
+                    <td>
+                        <?php 
+                        // Enhanced status display with routing info
+                        $statusClass = $at['status'];
+                        if ($at['status'] === 'recommended') $statusClass = 'pending';
+                        ?>
+                        <span class="status-badge status-<?php echo $statusClass; ?>">
+                            <?php 
+                            if ($at['status'] === 'pending') {
+                                echo '<i class="fas fa-clock"></i> Pending';
+                                if ($at['current_approver_role']) {
+                                    echo ' (' . htmlspecialchars($at['current_approver_role']) . ')';
+                                }
+                            } elseif ($at['status'] === 'recommended') {
+                                echo '<i class="fas fa-thumbs-up"></i> Recommended';
+                            } elseif ($at['status'] === 'approved') {
+                                echo '<i class="fas fa-check-circle"></i> Approved';
+                            } elseif ($at['status'] === 'rejected') {
+                                echo '<i class="fas fa-times-circle"></i> Rejected';
+                            }
+                            ?>
+                        </span>
+                    </td>
                     <td>
                         <div class="action-buttons">
                             <a href="<?php echo navUrl('/authority-to-travel.php?view=' . $at['id']); ?>" class="btn btn-icon" title="View">

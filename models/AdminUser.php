@@ -193,10 +193,67 @@ class AdminUser {
             $data['employee_no'] ?? null,
             $data['employee_position'] ?? null,
             $data['employee_office'] ?? null,
-            ROLE_USER  // Always register as regular user
+            ROLE_USER  // Always register as regular user (role_id = 6)
         ]);
 
         return ['success' => true, 'id' => $this->db->lastInsertId()];
+    }
+
+    /**
+     * Get users by role
+     */
+    public function getByRole($roleId, $activeOnly = true) {
+        $sql = "SELECT au.*, ar.role_name 
+                FROM admin_users au
+                JOIN admin_roles ar ON au.role_id = ar.id
+                WHERE au.role_id = ?";
+        $params = [$roleId];
+        
+        if ($activeOnly) {
+            $sql .= " AND au.status = 'active' AND au.is_active = 1";
+        }
+        
+        $sql .= " ORDER BY au.full_name";
+        
+        return $this->db->query($sql, $params)->fetchAll();
+    }
+
+    /**
+     * Get unit heads (OSDS_CHIEF, CID_CHIEF, SGOD_CHIEF)
+     */
+    public function getUnitHeads($activeOnly = true) {
+        $sql = "SELECT au.*, ar.role_name 
+                FROM admin_users au
+                JOIN admin_roles ar ON au.role_id = ar.id
+                WHERE au.role_id IN (?, ?, ?)";
+        $params = [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF];
+        
+        if ($activeOnly) {
+            $sql .= " AND au.status = 'active' AND au.is_active = 1";
+        }
+        
+        $sql .= " ORDER BY ar.id, au.full_name";
+        
+        return $this->db->query($sql, $params)->fetchAll();
+    }
+
+    /**
+     * Get approvers (ASDS and Superadmin)
+     */
+    public function getApprovers($activeOnly = true) {
+        $sql = "SELECT au.*, ar.role_name 
+                FROM admin_users au
+                JOIN admin_roles ar ON au.role_id = ar.id
+                WHERE au.role_id IN (?, ?)";
+        $params = [ROLE_SUPERADMIN, ROLE_ASDS];
+        
+        if ($activeOnly) {
+            $sql .= " AND au.status = 'active' AND au.is_active = 1";
+        }
+        
+        $sql .= " ORDER BY ar.id, au.full_name";
+        
+        return $this->db->query($sql, $params)->fetchAll();
     }
 
     /**

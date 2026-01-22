@@ -22,40 +22,32 @@ class TrackingService {
     }
 
     /**
-     * Generate next Authority to Travel tracking number for Local Official
-     * Format: AT-LOCAL-YYYY-NNNNNN (e.g., AT-LOCAL-2026-000001)
+     * Generate next Authority to Travel tracking number
+     * Format: AT-YYYY-NNNNN (e.g., AT-2026-00001)
+     */
+    public function generateATNumber($category = null, $scope = null) {
+        return $this->generateNumber('AT');
+    }
+
+    /**
+     * Legacy method - redirects to unified AT number
      */
     public function generateATLocalNumber() {
-        return $this->generateNumber('AT-LOCAL');
+        return $this->generateATNumber();
     }
 
     /**
-     * Generate next Authority to Travel tracking number for National Official
-     * Format: AT-NATL-YYYY-NNNNNN (e.g., AT-NATL-2026-000001)
+     * Legacy method - redirects to unified AT number
      */
     public function generateATNationalNumber() {
-        return $this->generateNumber('AT-NATL');
+        return $this->generateATNumber();
     }
 
     /**
-     * Generate next Authority to Travel tracking number for Personal
-     * Format: AT-PERS-YYYY-NNNNNN (e.g., AT-PERS-2026-000001)
+     * Legacy method - redirects to unified AT number
      */
     public function generateATPersonalNumber() {
-        return $this->generateNumber('AT-PERS');
-    }
-
-    /**
-     * Generate tracking number based on category and scope
-     */
-    public function generateATNumber($category, $scope = null) {
-        if ($category === 'personal') {
-            return $this->generateATPersonalNumber();
-        }
-        if ($scope === 'national') {
-            return $this->generateATNationalNumber();
-        }
-        return $this->generateATLocalNumber();
+        return $this->generateATNumber();
     }
 
     /**

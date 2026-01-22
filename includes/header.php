@@ -18,11 +18,21 @@ $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 // Get notification counts for sidebar badges
 $notificationCounts = [];
 try {
-    if ($auth->isApprover()) {
+    if ($auth->isApprover() || $auth->isUnitHead()) {
         $lsModel = new LocatorSlip();
         $atModel = new AuthorityToTravel();
-        $notificationCounts['ls_pending'] = $lsModel->getStatistics()['pending'] ?? 0;
-        $notificationCounts['at_pending'] = $atModel->getStatistics()['pending'] ?? 0;
+        
+        // For unit heads, get filtered counts
+        if ($auth->isUnitHead()) {
+            $notificationCounts['ls_pending'] = 0; // Locator slips may have different routing
+            $notificationCounts['at_pending'] = $atModel->getPendingCountForRole(
+                $currentUser['role_name'], 
+                $currentUser['role_id']
+            );
+        } else {
+            $notificationCounts['ls_pending'] = $lsModel->getStatistics()['pending'] ?? 0;
+            $notificationCounts['at_pending'] = $atModel->getStatistics()['pending'] ?? 0;
+        }
         $notificationCounts['total_pending'] = $notificationCounts['ls_pending'] + $notificationCounts['at_pending'];
     }
     
@@ -93,7 +103,7 @@ function navUrl($path) {
                 <a href="<?php echo navUrl('/'); ?>" class="nav-item <?php echo $currentPage === 'index' ? 'active' : ''; ?>" data-tooltip="Dashboard">
                     <span class="nav-icon">
                         <i class="fas fa-chart-line"></i>
-                        <?php if ($auth->isApprover() && ($notificationCounts['total_pending'] ?? 0) > 0): ?>
+                        <?php if (($auth->isApprover() || $auth->isUnitHead()) && ($notificationCounts['total_pending'] ?? 0) > 0): ?>
                         <span class="nav-badge"><?php echo $notificationCounts['total_pending'] > 99 ? '99+' : $notificationCounts['total_pending']; ?></span>
                         <?php endif; ?>
                     </span>
@@ -108,8 +118,8 @@ function navUrl($path) {
                 </a>
                 <?php endif; ?>
                 
-                <?php if ($auth->isApprover()): ?>
-                <!-- Approver navigation -->
+                <?php if ($auth->isApprover() || $auth->isUnitHead()): ?>
+                <!-- Approver/Unit Head navigation -->
                 <a href="<?php echo navUrl('/locator-slips.php'); ?>" class="nav-item <?php echo $currentPage === 'locator-slips' ? 'active' : ''; ?>" data-tooltip="Locator Slips">
                     <span class="nav-icon">
                         <i class="fas fa-map-marker-alt"></i>

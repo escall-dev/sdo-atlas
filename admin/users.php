@@ -4,13 +4,17 @@
  * SDO ATLAS - Superadmin only
  */
 
-require_once __DIR__ . '/../includes/header.php';
+// Superadmin only - check before header.php outputs anything
+require_once __DIR__ . '/../includes/auth.php';
+$authCheck = auth();
+$authCheck->requireLogin();
 
-// Superadmin only
-if (!$auth->isSuperAdmin()) {
-    header('Location: ' . navUrl('/'));
+if (!$authCheck->isSuperAdmin()) {
+    header('Location: /');
     exit;
 }
+
+require_once __DIR__ . '/../includes/header.php';
 
 require_once __DIR__ . '/../models/AdminUser.php';
 

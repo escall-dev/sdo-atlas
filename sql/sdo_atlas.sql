@@ -27,10 +27,12 @@ CREATE TABLE admin_roles (
 );
 
 INSERT INTO admin_roles (id, role_name, description, permissions) VALUES
-(1, 'SUPERADMIN', 'Full system access', '{"all": true}'),
-(2, 'ASDS', 'Assistant Schools Division Superintendent - Primary Approver', '{"requests.view": true, "requests.approve": true, "logs.view": true, "analytics.view": true}'),
-(3, 'AOV', 'Administrative Officer V - Approver when ASDS unavailable', '{"requests.view": true, "requests.approve": true, "logs.view": true, "analytics.view": true}'),
-(4, 'USER', 'SDO Employee - Can file and track own requests', '{"requests.file": true, "requests.own": true}');
+(1, 'SUPERADMIN', 'Schools Division Superintendent - Full system access and executive override', '{"all": true}'),
+(2, 'ASDS', 'Assistant Schools Division Superintendent - Final approver for all travel requests', '{"requests.view": true, "requests.approve": true, "requests.final_approve": true, "logs.view": true, "analytics.view": true}'),
+(3, 'OSDS_CHIEF', 'Administrative Officer V - Recommending authority for OSDS units (Supply, Records, HR, Admin)', '{"requests.view": true, "requests.recommend": true, "requests.own": true, "logs.view": true}'),
+(4, 'CID_CHIEF', 'Chief, Curriculum Implementation Division - Recommending authority for CID', '{"requests.view": true, "requests.recommend": true, "requests.own": true, "logs.view": true}'),
+(5, 'SGOD_CHIEF', 'Chief, School Governance and Operations Division - Recommending authority for SGOD', '{"requests.view": true, "requests.recommend": true, "requests.own": true, "logs.view": true}'),
+(6, 'USER', 'SDO Employee - Can file and track own requests', '{"requests.file": true, "requests.own": true}');
 
 -- =========================
 -- USERS
@@ -139,15 +141,22 @@ CREATE TABLE authority_to_travel (
 
   recommending_authority_name VARCHAR(150),
   recommending_date DATE,
+  recommended_by INT DEFAULT NULL,
 
   approving_authority_name VARCHAR(150),
   approval_date DATE,
   rejection_reason TEXT,
 
+  -- ROUTING SYSTEM
+  current_approver_role VARCHAR(50) DEFAULT NULL,
+  routing_stage ENUM('recommending','final','completed') DEFAULT 'recommending',
+  requester_office VARCHAR(150),
+  requester_role_id INT,
+
   -- SYSTEM
-  travel_category ENUM('official','personal') NOT NULL,
+  travel_category ENUM('official','personal') NOT NULL DEFAULT 'official',
   travel_scope ENUM('local','national') DEFAULT NULL,
-  status ENUM('pending','approved','rejected') DEFAULT 'pending',
+  status ENUM('pending','recommended','approved','rejected') DEFAULT 'pending',
   user_id INT NOT NULL,
   approved_by INT DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -155,10 +164,12 @@ CREATE TABLE authority_to_travel (
 
   FOREIGN KEY (user_id) REFERENCES admin_users(id),
   FOREIGN KEY (approved_by) REFERENCES admin_users(id),
+  FOREIGN KEY (recommended_by) REFERENCES admin_users(id),
   INDEX idx_status (status),
   INDEX idx_user (user_id),
   INDEX idx_category (travel_category),
   INDEX idx_scope (travel_scope),
+  INDEX idx_routing (current_approver_role, routing_stage),
   INDEX idx_created (created_at)
 );
 
@@ -176,9 +187,7 @@ CREATE TABLE tracking_sequences (
 
 INSERT INTO tracking_sequences (prefix, year, last_number) VALUES
 ('LS', 2026, 0),
-('AT-LOCAL', 2026, 0),
-('AT-NATL', 2026, 0),
-('AT-PERS', 2026, 0);
+('AT', 2026, 0);
 
 -- =========================
 -- ACTIVITY LOGS

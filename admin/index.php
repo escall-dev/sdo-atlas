@@ -11,20 +11,32 @@ require_once __DIR__ . '/../models/AuthorityToTravel.php';
 $lsModel = new LocatorSlip();
 $atModel = new AuthorityToTravel();
 
+// Get current user's ID for personal stats
+$userId = $auth->getUserId();
+$currentRoleId = $currentUser['role_id'];
+$currentRoleName = $currentUser['role_name'];
+
 // Get statistics based on role
 if ($auth->isEmployee()) {
     // Employee sees only their own stats
-    $userId = $auth->getUserId();
-    $lsStats = $lsModel->getStatistics($userId);
-    $atStats = $atModel->getStatistics($userId);
+    $myLsStats = $lsModel->getStatistics($userId);
+    $myAtStats = $atModel->getMyStatistics($userId);
     $recentLS = $lsModel->getRecent(5, $userId);
     $recentAT = $atModel->getRecent(5, $userId);
-} else {
-    // Approvers see all stats
-    $lsStats = $lsModel->getStatistics();
-    $atStats = $atModel->getStatistics();
+} elseif ($auth->isUnitHead()) {
+    // Unit heads see stats about requests FROM THEIR UNIT (supervised offices)
+    $myLsStats = $lsModel->getStatistics($userId); // Their own LS if any
+    $myAtStats = $atModel->getUnitStatistics($currentRoleId); // Stats from their supervised offices
     $pendingLS = $lsModel->getPending(5);
-    $pendingAT = $atModel->getPending(5);
+    $pendingAT = $atModel->getPending(5, $currentRoleId, $currentRoleName);
+    $queueCount = $atModel->getPendingCountForRole($currentRoleName, $currentRoleId);
+} else {
+    // ASDS/Superadmin see all stats
+    $myLsStats = $lsModel->getStatistics();
+    $myAtStats = $atModel->getStatistics();
+    $pendingLS = $lsModel->getPending(5);
+    $pendingAT = $atModel->getPending(5, $currentRoleId, $currentRoleName);
+    $queueCount = ($lsModel->getStatistics()['pending'] ?? 0) + ($atModel->getPendingCountForRole($currentRoleName, $currentRoleId));
 }
 ?>
 
@@ -76,7 +88,7 @@ if ($auth->isEmployee()) {
                 <i class="fas fa-file-alt"></i>
             </div>
             <div class="stat-content">
-                <span class="stat-value"><?php echo ($lsStats['total'] ?? 0) + ($atStats['total'] ?? 0); ?></span>
+                <span class="stat-value"><?php echo ($myLsStats['total'] ?? 0) + ($myAtStats['total'] ?? 0); ?></span>
                 <span class="stat-label">Total Requests</span>
             </div>
         </div>
@@ -86,7 +98,7 @@ if ($auth->isEmployee()) {
                 <i class="fas fa-clock"></i>
             </div>
             <div class="stat-content">
-                <span class="stat-value"><?php echo ($lsStats['pending'] ?? 0) + ($atStats['pending'] ?? 0); ?></span>
+                <span class="stat-value"><?php echo ($myLsStats['pending'] ?? 0) + ($myAtStats['pending'] ?? 0); ?></span>
                 <span class="stat-label">Pending</span>
             </div>
         </div>
@@ -96,7 +108,7 @@ if ($auth->isEmployee()) {
                 <i class="fas fa-check-circle"></i>
             </div>
             <div class="stat-content">
-                <span class="stat-value"><?php echo ($lsStats['approved'] ?? 0) + ($atStats['approved'] ?? 0); ?></span>
+                <span class="stat-value"><?php echo ($myLsStats['approved'] ?? 0) + ($myAtStats['approved'] ?? 0); ?></span>
                 <span class="stat-label">Approved</span>
             </div>
         </div>
@@ -106,7 +118,7 @@ if ($auth->isEmployee()) {
                 <i class="fas fa-times-circle"></i>
             </div>
             <div class="stat-content">
-                <span class="stat-value"><?php echo ($lsStats['rejected'] ?? 0) + ($atStats['rejected'] ?? 0); ?></span>
+                <span class="stat-value"><?php echo ($myLsStats['rejected'] ?? 0) + ($myAtStats['rejected'] ?? 0); ?></span>
                 <span class="stat-label">Rejected</span>
             </div>
         </div>
@@ -190,8 +202,8 @@ if ($auth->isEmployee()) {
                 <i class="fas fa-file-alt" style="color: white;"></i>
             </div>
             <div class="stat-content">
-                <span class="stat-value"><?php echo ($lsStats['total'] ?? 0) + ($atStats['total'] ?? 0); ?></span>
-                <span class="stat-label">Total Requests</span>
+                <span class="stat-value"><?php echo ($myAtStats['total'] ?? 0); ?></span>
+                <span class="stat-label"><?php echo $auth->isUnitHead() ? 'Unit Total' : 'Total Requests'; ?></span>
             </div>
         </div>
         
@@ -200,38 +212,38 @@ if ($auth->isEmployee()) {
                 <i class="fas fa-clock" style="color: #b45309;"></i>
             </div>
             <div class="stat-content">
-                <span class="stat-value"><?php echo ($lsStats['pending'] ?? 0) + ($atStats['pending'] ?? 0); ?></span>
-                <span class="stat-label">Pending Approval</span>
+                <span class="stat-value"><?php echo ($myAtStats['pending'] ?? 0); ?></span>
+                <span class="stat-label"><?php echo $auth->isUnitHead() ? 'Unit Pending' : 'Pending'; ?></span>
             </div>
         </div>
         
         <div class="stat-card stat-accepted">
             <div class="stat-icon">
-                <i class="fas fa-map-marker-alt" style="color: #1d4ed8;"></i>
+                <i class="fas fa-check-circle" style="color: #047857;"></i>
             </div>
             <div class="stat-content">
-                <span class="stat-value"><?php echo $lsStats['pending'] ?? 0; ?></span>
-                <span class="stat-label">Pending LS</span>
+                <span class="stat-value"><?php echo ($myAtStats['approved'] ?? 0); ?></span>
+                <span class="stat-label"><?php echo $auth->isUnitHead() ? 'Unit Approved' : 'Approved'; ?></span>
             </div>
         </div>
         
         <div class="stat-card stat-progress">
             <div class="stat-icon">
-                <i class="fas fa-plane" style="color: #7c3aed;"></i>
+                <i class="fas fa-inbox" style="color: #7c3aed;"></i>
             </div>
             <div class="stat-content">
-                <span class="stat-value"><?php echo $atStats['pending'] ?? 0; ?></span>
-                <span class="stat-label">Pending AT</span>
+                <span class="stat-value"><?php echo $queueCount ?? 0; ?></span>
+                <span class="stat-label">In My Queue</span>
             </div>
         </div>
         
         <div class="stat-card stat-resolved">
             <div class="stat-icon">
-                <i class="fas fa-check-double" style="color: #047857;"></i>
+                <i class="fas fa-times-circle" style="color: #dc2626;"></i>
             </div>
             <div class="stat-content">
-                <span class="stat-value"><?php echo ($lsStats['approved'] ?? 0) + ($atStats['approved'] ?? 0); ?></span>
-                <span class="stat-label">Approved Today</span>
+                <span class="stat-value"><?php echo ($myAtStats['rejected'] ?? 0); ?></span>
+                <span class="stat-label"><?php echo $auth->isUnitHead() ? 'Unit Rejected' : 'Rejected'; ?></span>
             </div>
         </div>
     </div>
@@ -305,28 +317,28 @@ if ($auth->isEmployee()) {
             <!-- Quick Stats -->
             <div class="dashboard-card">
                 <div class="card-header">
-                    <h2><i class="fas fa-chart-bar"></i> This Week</h2>
+                    <h2><i class="fas fa-chart-bar"></i> My This Week</h2>
                 </div>
                 <div class="card-body">
                     <div class="quick-stat-item">
                         <span class="quick-stat-label">Locator Slips Filed</span>
-                        <span class="quick-stat-value"><?php echo $lsStats['this_week'] ?? 0; ?></span>
+                        <span class="quick-stat-value"><?php echo $myLsStats['this_week'] ?? 0; ?></span>
                     </div>
                     <div class="quick-stat-item">
                         <span class="quick-stat-label">Travel Requests Filed</span>
-                        <span class="quick-stat-value"><?php echo $atStats['this_week'] ?? 0; ?></span>
+                        <span class="quick-stat-value"><?php echo $myAtStats['this_week'] ?? 0; ?></span>
                     </div>
                     <div class="quick-stat-item">
                         <span class="quick-stat-label">Local Official AT</span>
-                        <span class="quick-stat-value"><?php echo $atStats['local_official'] ?? 0; ?></span>
+                        <span class="quick-stat-value"><?php echo $myAtStats['local_official'] ?? 0; ?></span>
                     </div>
                     <div class="quick-stat-item">
                         <span class="quick-stat-label">National Official AT</span>
-                        <span class="quick-stat-value"><?php echo $atStats['national_official'] ?? 0; ?></span>
+                        <span class="quick-stat-value"><?php echo $myAtStats['national_official'] ?? 0; ?></span>
                     </div>
                     <div class="quick-stat-item" style="border-bottom: none;">
                         <span class="quick-stat-label">Personal AT</span>
-                        <span class="quick-stat-value"><?php echo $atStats['personal'] ?? 0; ?></span>
+                        <span class="quick-stat-value"><?php echo $myAtStats['personal'] ?? 0; ?></span>
                     </div>
                 </div>
             </div>

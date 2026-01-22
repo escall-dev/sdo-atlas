@@ -236,13 +236,55 @@ class AdminAuth {
     }
 
     /**
-     * Check if current user is an approver (Superadmin, ASDS, or AOV)
+     * Check if current user is ASDS
+     */
+    public function isASDS() {
+        if (!$this->user) {
+            return false;
+        }
+        return $this->user['role_id'] == ROLE_ASDS;
+    }
+
+    /**
+     * Check if current user is a unit head (OSDS Chief, CID Chief, SGOD Chief)
+     */
+    public function isUnitHead() {
+        if (!$this->user) {
+            return false;
+        }
+        return isUnitHead($this->user['role_id']);
+    }
+
+    /**
+     * Check if current user is a final approver (Superadmin or ASDS)
      */
     public function isApprover() {
         if (!$this->user) {
             return false;
         }
         return isApprover($this->user['role_id']);
+    }
+
+    /**
+     * Check if current user can approve/recommend AT requests
+     * Includes unit heads who can recommend
+     */
+    public function canActOnAT() {
+        if (!$this->user) {
+            return false;
+        }
+        return $this->isApprover() || $this->isUnitHead();
+    }
+
+    /**
+     * Check if current user can approve Locator Slips
+     * Includes OSDS_CHIEF in addition to ASDS and Superadmin
+     */
+    public function canApproveLS() {
+        if (!$this->user) {
+            return false;
+        }
+        return $this->isApprover() || $this->user['role_id'] == ROLE_OSDS_CHIEF;
     }
 
     /**
@@ -253,6 +295,20 @@ class AdminAuth {
             return false;
         }
         return isEmployee($this->user['role_id']);
+    }
+
+    /**
+     * Get the role name for current user
+     */
+    public function getRoleName() {
+        return $this->user ? $this->user['role_name'] : null;
+    }
+
+    /**
+     * Get the employee office for current user
+     */
+    public function getEmployeeOffice() {
+        return $this->user ? $this->user['employee_office'] : null;
     }
 
     /**

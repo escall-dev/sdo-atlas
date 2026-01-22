@@ -18,11 +18,54 @@ define('ITEMS_PER_PAGE', 15);
 define('BASE_URL', '/SDO-atlas');
 define('ADMIN_URL', '/SDO-atlas/admin');
 
-// Role IDs
-define('ROLE_SUPERADMIN', 1);
-define('ROLE_ASDS', 2);
-define('ROLE_AOV', 3);
-define('ROLE_USER', 4);
+// Role IDs - Aligned with SQL admin_roles
+define('ROLE_SUPERADMIN', 1);  // SDS - Executive Override
+define('ROLE_ASDS', 2);        // ASDS - Final Approver
+define('ROLE_OSDS_CHIEF', 3);  // AO V - Recommending for OSDS units
+define('ROLE_CID_CHIEF', 4);   // CID Chief - Recommending for CID
+define('ROLE_SGOD_CHIEF', 5);  // SGOD Chief - Recommending for SGOD
+define('ROLE_USER', 6);        // Regular Employee
+
+// Unit Head Roles Array
+define('UNIT_HEAD_ROLES', [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF]);
+
+// OSDS Units (under AO V supervision)
+define('OSDS_UNITS', ['OSDS', 'Supply', 'Records', 'HR', 'Admin', 'Personnel', 'Cashier', 'Finance']);
+
+// Role to Office Mapping for Routing
+define('ROLE_OFFICE_MAP', [
+    'CID' => ROLE_CID_CHIEF,
+    'SGOD' => ROLE_SGOD_CHIEF,
+    // OSDS units map to OSDS_CHIEF
+    'OSDS' => ROLE_OSDS_CHIEF,
+    'Supply' => ROLE_OSDS_CHIEF,
+    'Records' => ROLE_OSDS_CHIEF,
+    'HR' => ROLE_OSDS_CHIEF,
+    'Admin' => ROLE_OSDS_CHIEF,
+    'Personnel' => ROLE_OSDS_CHIEF,
+    'Cashier' => ROLE_OSDS_CHIEF,
+    'Finance' => ROLE_OSDS_CHIEF
+]);
+
+// Offices supervised by each Unit Head Role (reverse mapping)
+define('UNIT_HEAD_OFFICES', [
+    ROLE_CID_CHIEF => ['CID'],
+    ROLE_SGOD_CHIEF => ['SGOD'],
+    ROLE_OSDS_CHIEF => ['OSDS', 'Supply', 'Records', 'HR', 'Admin', 'Personnel', 'Cashier', 'Finance']
+]);
+
+// Recommending Authority Names by Role
+define('RECOMMENDING_AUTHORITY_MAP', [
+    ROLE_CID_CHIEF => 'CID Chief',
+    ROLE_SGOD_CHIEF => 'SGOD Chief',
+    ROLE_OSDS_CHIEF => 'AO V'
+]);
+
+// Approving Authority Names
+define('APPROVING_AUTHORITY_MAP', [
+    ROLE_ASDS => 'ASDS',
+    ROLE_SUPERADMIN => 'SDS'
+]);
 
 // Status configuration for requests
 define('STATUS_CONFIG', [
@@ -31,6 +74,12 @@ define('STATUS_CONFIG', [
         'color' => '#f59e0b',
         'bg' => '#fef3c7',
         'icon' => '<i class="fas fa-clock"></i>'
+    ],
+    'recommended' => [
+        'label' => 'Recommended',
+        'color' => '#3b82f6',
+        'bg' => '#dbeafe',
+        'icon' => '<i class="fas fa-thumbs-up"></i>'
     ],
     'approved' => [
         'label' => 'Approved',
@@ -109,10 +158,17 @@ define('SDO_OFFICES', [
 ]);
 
 /**
- * Helper function to check if user is an approver (ASDS, AOV, or Superadmin)
+ * Helper function to check if user is a final approver (ASDS or Superadmin)
  */
 function isApprover($roleId) {
-    return in_array($roleId, [ROLE_SUPERADMIN, ROLE_ASDS, ROLE_AOV]);
+    return in_array($roleId, [ROLE_SUPERADMIN, ROLE_ASDS]);
+}
+
+/**
+ * Helper function to check if user is a unit head (can recommend)
+ */
+function isUnitHead($roleId) {
+    return in_array($roleId, UNIT_HEAD_ROLES);
 }
 
 /**
@@ -120,6 +176,27 @@ function isApprover($roleId) {
  */
 function isEmployee($roleId) {
     return $roleId == ROLE_USER;
+}
+
+/**
+ * Helper function to determine recommending authority based on office
+ */
+function getRecommendingRoleForOffice($office) {
+    return ROLE_OFFICE_MAP[$office] ?? ROLE_OSDS_CHIEF; // Default to OSDS Chief
+}
+
+/**
+ * Helper function to get recommending authority name by role
+ */
+function getRecommendingAuthorityName($roleId) {
+    return RECOMMENDING_AUTHORITY_MAP[$roleId] ?? null;
+}
+
+/**
+ * Helper function to get approving authority name by role
+ */
+function getApprovingAuthorityName($roleId) {
+    return APPROVING_AUTHORITY_MAP[$roleId] ?? 'ASDS';
 }
 
 /**
