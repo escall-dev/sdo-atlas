@@ -62,7 +62,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $at = $atModel->getById($id);
         
         if ($at && $at['status'] === 'pending') {
-            $atModel->approve($id, $auth->getUserId(), $currentUser['full_name']);
+            // Expand common acronyms to full titles for approver position
+            $posRaw = trim($currentUser['employee_position'] ?? '');
+            $posKey = strtoupper($posRaw);
+            $positionMap = [
+                'ASDS' => 'Assistant Schools Division Superintendent',
+                'AOV'  => 'Administrative Officer V',
+                'SDS'  => 'Schools Division Superintendent',
+                'SUPERADMIN' => 'Superadmin',
+            ];
+            $approverPosition = $positionMap[$posKey] ?? ($posRaw ?: $currentUser['role_name'] ?? '');
+            
+            $atModel->approve($id, $auth->getUserId(), $currentUser['full_name'], $currentUser['full_name']);
             $auth->logActivity('approve', 'authority_to_travel', $id, 'Approved AT: ' . $at['at_tracking_no']);
             $message = 'Authority to Travel approved successfully!';
         }

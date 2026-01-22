@@ -134,29 +134,40 @@ class DocxGenerator {
     private function generateATDocument($templateFile, $data, $prefix) {
         $templateProcessor = new TemplateProcessor($templateFile);
 
-        // Set all placeholders
+        // Helper function to ensure value is a string and not null
+        $getValue = function($key, $default = '') use ($data) {
+            $value = $data[$key] ?? $default;
+            return $value !== null ? (string)$value : '';
+        };
+
+        // Set all placeholders - ensure all values are strings
         $placeholders = [
-            'at_tracking_no' => $data['at_tracking_no'] ?? '',
-            'employee_name' => $data['employee_name'] ?? '',
-            'employee_position' => $data['employee_position'] ?? '',
-            'permanent_station' => $data['permanent_station'] ?? '',
-            'purpose_of_travel' => $data['purpose_of_travel'] ?? '',
-            'host_of_activity' => $data['host_of_activity'] ?? '',
-            'date_from' => $this->formatDate($data['date_from'] ?? ''),
-            'date_to' => $this->formatDate($data['date_to'] ?? ''),
-            'destination' => $data['destination'] ?? '',
-            'fund_source' => $data['fund_source'] ?? '',
-            'inclusive_dates' => $data['inclusive_dates'] ?? $this->formatDateRange($data['date_from'] ?? '', $data['date_to'] ?? ''),
-            'requesting_employee_name' => $data['requesting_employee_name'] ?? $data['employee_name'] ?? '',
-            'request_date' => $this->formatDate($data['request_date'] ?? ''),
-            'recommending_authority_name' => $data['recommending_authority_name'] ?? '',
-            'recommending_date' => $this->formatDate($data['recommending_date'] ?? ''),
-            'approving_authority_name' => $data['approving_authority_name'] ?? '',
-            'approval_date' => $this->formatDate($data['approval_date'] ?? '')
+            'at_tracking_no' => $getValue('at_tracking_no'),
+            'employee_name' => $getValue('employee_name'),
+            'employee_position' => $getValue('employee_position'),
+            'permanent_station' => $getValue('permanent_station'),
+            'purpose_of_travel' => $getValue('purpose_of_travel'),
+            'host_of_activity' => $getValue('host_of_activity'),
+            'date_from' => $this->formatDate($getValue('date_from')),
+            'date_to' => $this->formatDate($getValue('date_to')),
+            'destination' => $getValue('destination'),
+            'fund_source' => $getValue('fund_source'),
+            'inclusive_dates' => $getValue('inclusive_dates') ?: $this->formatDateRange($getValue('date_from'), $getValue('date_to')),
+            'requesting_employee_name' => $getValue('requesting_employee_name') ?: $getValue('employee_name'),
+            'request_date' => $this->formatDate($getValue('request_date')),
+            'recommending_authority_name' => $getValue('recommending_authority_name'),
+            'recommending_date' => $this->formatDate($getValue('recommending_date')),
+            'approving_authority_name' => $getValue('approving_authority_name'),
+            'approval_date' => $this->formatDate($getValue('approval_date'))
         ];
 
+        // Replace all placeholders - use setValue for each
+        // Note: Template must have placeholders in format ${key} (e.g., ${employee_name})
         foreach ($placeholders as $key => $value) {
-            $templateProcessor->setValue($key, $value);
+            // Ensure value is always a string, never null
+            $stringValue = $value !== null ? (string)$value : '';
+            // PHPWord TemplateProcessor will replace ${key} in template with the value
+            $templateProcessor->setValue($key, $stringValue);
         }
 
         // Generate output filename
