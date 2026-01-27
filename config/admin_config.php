@@ -42,6 +42,14 @@ define('OSDS_UNITS', [
 define('ROLE_OFFICE_MAP', [
     'CID' => ROLE_CID_CHIEF,
     'SGOD' => ROLE_SGOD_CHIEF,
+    // SGOD units map to SGOD_CHIEF
+    'SMME' => ROLE_SGOD_CHIEF,
+    'HRD' => ROLE_SGOD_CHIEF,
+    'SMN' => ROLE_SGOD_CHIEF,
+    'PR' => ROLE_SGOD_CHIEF,
+    'DRRM' => ROLE_SGOD_CHIEF,
+    'EF' => ROLE_SGOD_CHIEF,
+    'SHN' => ROLE_SGOD_CHIEF,
     // OSDS units map to OSDS_CHIEF (AO V)
     'OSDS' => ROLE_OSDS_CHIEF,
     'Personnel' => ROLE_OSDS_CHIEF,
@@ -59,7 +67,7 @@ define('ROLE_OFFICE_MAP', [
 // Updated per Routing Directive: OSDS Chief supervises all OSDS units
 define('UNIT_HEAD_OFFICES', [
     ROLE_CID_CHIEF => ['CID'],
-    ROLE_SGOD_CHIEF => ['SGOD'],
+    ROLE_SGOD_CHIEF => ['SGOD', 'SMME', 'HRD', 'SMN', 'PR', 'DRRM', 'EF', 'SHN'],
     ROLE_OSDS_CHIEF => [
         'OSDS', 'Personnel', 'Records and Supply',
         'Procurement', 'General Services', 'Legal', 'ICT',
@@ -172,6 +180,14 @@ define('SDO_OFFICES', [
     // Divisions
     'CID' => 'Curriculum Implementation Division',
     'SGOD' => 'School Governance and Operations Division',
+    // SGOD Units (all route to SGOD Chief)
+    'SMME' => 'School Management Monitoring and Evaluation',
+    'HRD' => 'Human Resource Development',
+    'SMN' => 'Social Mobilization and Networking',
+    'PR' => 'Planning and Research',
+    'DRRM' => 'Disaster Risk Reduction and Management',
+    'EF' => 'Education Facilities',
+    'SHN' => 'School Health and Nutrition',
     // OSDS Units/Sections (all route to OSDS Chief)
     'OSDS' => 'Office of the Schools Division Superintendent Staff',
     'Personnel' => 'Personnel Section',
