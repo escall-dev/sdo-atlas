@@ -1,7 +1,7 @@
 <?php
 /**
- * DOCX Generation API
- * Generates and downloads DOCX files for approved requests
+ * PDF Generation API
+ * Generates and downloads PDF files for approved requests
  */
 
 require_once __DIR__ . '/../../includes/auth.php';
@@ -45,8 +45,8 @@ try {
             die('Only approved requests can be downloaded');
         }
         
-        $outputFile = $generator->generateLocatorSlip($data);
-        $filename = 'Locator-Slip-' . $data['ls_control_no'] . '.docx';
+        $outputFile = $generator->generateLocatorSlipPDF($data);
+        $filename = 'Locator-Slip-' . $data['ls_control_no'] . '.pdf';
         
     } elseif ($type === 'at') {
         $atModel = new AuthorityToTravel();
@@ -68,8 +68,8 @@ try {
             die('Only approved requests can be downloaded');
         }
         
-        $outputFile = $generator->generateAT($data);
-        $filename = 'Authority-to-Travel-' . $data['at_tracking_no'] . '.docx';
+        $outputFile = $generator->generateATPDF($data);
+        $filename = 'Authority-to-Travel-' . $data['at_tracking_no'] . '.pdf';
         
     } else {
         http_response_code(400);
@@ -85,7 +85,7 @@ try {
     $auth->logActivity('download', $type === 'ls' ? 'locator_slip' : 'authority_to_travel', $id, 'Downloaded document');
     
     // Send file for download
-    header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    header('Content-Type: application/pdf');
     header('Content-Disposition: attachment; filename="' . $filename . '"');
     header('Content-Length: ' . filesize($outputFile));
     header('Cache-Control: no-cache, no-store, must-revalidate');

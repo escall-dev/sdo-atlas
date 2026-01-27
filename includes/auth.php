@@ -372,6 +372,8 @@ class AdminAuth {
 
     /**
      * Get the effective role ID (actual role or OIC delegated role)
+     * Note: OSDS Chief and AOV (Administrative Officer V) are the same role (ROLE_OSDS_CHIEF)
+     * When an OIC is delegated for OSDS_CHIEF, they inherit full authority - no secondary fallback
      */
     public function getEffectiveRoleId() {
         if (!$this->user) {
@@ -388,6 +390,7 @@ class AdminAuth {
 
     /**
      * Get the effective role name for database queries (without OIC suffix)
+     * Note: OSDS Chief = AOV - same approving authority, no fallback routing
      */
     public function getEffectiveRoleName() {
         if (!$this->user) {

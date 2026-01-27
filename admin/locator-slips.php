@@ -489,7 +489,7 @@ if (!$editData || !$lsModel->canUserEdit($editData, $auth->getUserId())) {
             </div>
             <div class="detail-card-body">
                 <a href="<?php echo navUrl('/api/generate-docx.php?type=ls&id=' . $viewData['id']); ?>" class="btn btn-primary btn-block">
-                    <i class="fas fa-file-word"></i> Download DOCX
+                    <i class="fas fa-file-pdf"></i> Download PDF
                 </a>
             </div>
         </div>
@@ -755,7 +755,7 @@ function closeRejectModal() {
                             </a>
                             <?php endif; ?>
                             <?php if ($ls['status'] === 'approved'): ?>
-                            <a href="<?php echo navUrl('/api/generate-docx.php?type=ls&id=' . $ls['id']); ?>" class="btn btn-icon" title="Download" style="color: var(--success);">
+                            <a href="<?php echo navUrl('/api/generate-docx.php?type=ls&id=' . $ls['id']); ?>" class="btn btn-icon" title="Download PDF" style="color: var(--success);">
                                 <i class="fas fa-download"></i>
                             </a>
                             <?php endif; ?>

@@ -18,8 +18,9 @@ class AuthorityToTravel {
     /**
      * Determine routing for a new AT request based on requester's role and office
      * Returns: [current_approver_role, routing_stage, recommending_authority_name]
+     * Updated: Uses database-driven unit_routing_config table
      */
-    public function determineRouting($requesterRoleId, $requesterOffice) {
+    public function determineRouting($requesterRoleId, $requesterOfficeId = null, $requesterOffice = null, $travelScope = null) {
         // Unit heads skip recommending stage and go directly to ASDS
         if (in_array($requesterRoleId, UNIT_HEAD_ROLES)) {
             return [
@@ -31,7 +32,8 @@ class AuthorityToTravel {
         }
 
         // Regular employees route to their unit head first
-        $recommenderRole = $this->getRecommenderRoleForOffice($requesterOffice);
+        // Use database-driven routing configuration
+        $recommenderRole = $this->getRecommenderRoleForOffice($requesterOfficeId, $requesterOffice, $travelScope);
         $recommenderRoleName = $this->getRoleNameById($recommenderRole);
 
         return [
@@ -44,18 +46,167 @@ class AuthorityToTravel {
 
     /**
      * Get the recommender role ID based on employee office
+     * Uses database-driven unit_routing_config table with fallback to static mapping
+     * @param string $office Employee office/unit name
+     * @param string|null $travelScope Optional travel scope (local, international)
+     * @return int Role ID of recommending authority
      */
-    private function getRecommenderRoleForOffice($office) {
-        // Normalize office name for comparison
-        $office = trim($office);
+    private function getRecommenderRoleForOffice($officeId = null, $office = null, $travelScope = null) {
+        // Prefer office_id lookups for accuracy
+        if ($officeId) {
+            $approverRole = $this->getApproverRoleFromRoutingConfigByOfficeId($officeId, $travelScope);
+            if ($approverRole !== null) {
+                return $approverRole;
+            }
+
+            $roleFromOffice = getApproverRoleByOfficeId($officeId);
+            if ($roleFromOffice !== null) {
+                return $roleFromOffice;
+            }
+        }
+
+        // Normalize office name for comparison when id is not available
+        $office = $office !== null ? trim($office) : '';
+
+        // First, try to get from database routing config by name
+        $approverRole = $this->getApproverRoleFromRoutingConfig($office, $travelScope);
+        if ($approverRole !== null) {
+            return $approverRole;
+        }
         
-        // Check if office is in OSDS units
-        if (in_array($office, OSDS_UNITS)) {
+        // Fallback: Check if office is in OSDS units
+        if ($office && in_array($office, OSDS_UNITS)) {
             return ROLE_OSDS_CHIEF;
         }
         
-        // Check specific mappings
+        // Fallback: Check specific mappings
         return ROLE_OFFICE_MAP[$office] ?? ROLE_OSDS_CHIEF;
+    }
+
+    /**
+     * Query unit_routing_config table for approver role using office_id
+     */
+    private function getApproverRoleFromRoutingConfigByOfficeId($officeId, $travelScope = null) {
+        try {
+            $sql = "SELECT approver_role_id FROM unit_routing_config 
+                    WHERE office_id = ? AND is_active = 1";
+            $params = [$officeId];
+
+            if ($travelScope && $travelScope !== 'all') {
+                $sql .= " AND (travel_scope = ? OR travel_scope = 'all')";
+                $params[] = $travelScope;
+            }
+
+            $sql .= " LIMIT 1";
+            $result = $this->db->query($sql, $params)->fetch();
+
+            if ($result && isset($result['approver_role_id'])) {
+                return (int) $result['approver_role_id'];
+            }
+        } catch (Exception $e) {
+            // Table may not exist yet, return null to use fallback
+        }
+
+        return null;
+    }
+    
+    /**
+     * Query unit_routing_config table for approver role
+     * @param string $unitName The unit/office name
+     * @param string|null $travelScope Optional travel scope filter
+     * @return int|null Role ID or null if not found
+     */
+    private function getApproverRoleFromRoutingConfig($unitName, $travelScope = null) {
+        try {
+            $sql = "SELECT approver_role_id FROM unit_routing_config 
+                    WHERE unit_name = ? AND is_active = 1";
+            $params = [$unitName];
+            
+            if ($travelScope && $travelScope !== 'all') {
+                $sql .= " AND (travel_scope = ? OR travel_scope = 'all')";
+                $params[] = $travelScope;
+            }
+            
+            $sql .= " LIMIT 1";
+            $result = $this->db->query($sql, $params)->fetch();
+            
+            if ($result && isset($result['approver_role_id'])) {
+                return (int) $result['approver_role_id'];
+            }
+        } catch (Exception $e) {
+            // Table may not exist yet, return null to use fallback
+        }
+        
+        return null;
+    }
+
+    /**
+     * Get supervised office IDs for a given approver role
+     */
+    public function getSupervisedOfficeIdsForRole($roleId) {
+        try {
+            $sql = "SELECT office_id FROM unit_routing_config 
+                    WHERE approver_role_id = ? AND is_active = 1 AND office_id IS NOT NULL";
+            $results = $this->db->query($sql, [$roleId])->fetchAll();
+            $ids = array_filter(array_column($results, 'office_id'));
+            if (!empty($ids)) {
+                return array_map('intval', $ids);
+            }
+        } catch (Exception $e) {
+            // Fall through to empty
+        }
+
+        return [];
+    }
+
+    /**
+     * Apply office filter using both IDs and legacy names
+     */
+    private function applyOfficeFilter(&$sql, &$params, $officeIds = [], $officeNames = [], $alias = 'at.') {
+        $clauses = [];
+
+        if (!empty($officeIds)) {
+            $placeholders = implode(',', array_fill(0, count($officeIds), '?'));
+            $clauses[] = "{$alias}requester_office_id IN ($placeholders)";
+            foreach ($officeIds as $id) {
+                $params[] = $id;
+            }
+        }
+
+        if (!empty($officeNames)) {
+            $placeholders = implode(',', array_fill(0, count($officeNames), '?'));
+            $clauses[] = "{$alias}requester_office IN ($placeholders)";
+            $params = array_merge($params, $officeNames);
+        }
+
+        if (!empty($clauses)) {
+            $sql .= ' AND (' . implode(' OR ', $clauses) . ')';
+        }
+    }
+
+    /**
+     * Get supervised offices for a role from database
+     * Used for filtering requests visible to unit heads
+     * @param int $roleId The unit head role ID
+     * @return array Array of office names supervised by this role
+     */
+    public function getSupervisedOfficesForRole($roleId) {
+        try {
+            $sql = "SELECT unit_name FROM unit_routing_config 
+                    WHERE approver_role_id = ? AND is_active = 1 
+                    ORDER BY sort_order ASC";
+            
+            $results = $this->db->query($sql, [$roleId])->fetchAll();
+            
+            if (!empty($results)) {
+                return array_column($results, 'unit_name');
+            }
+        } catch (Exception $e) {
+            // Fall back to static mapping
+        }
+        
+        // Fallback to static UNIT_HEAD_OFFICES
+        return UNIT_HEAD_OFFICES[$roleId] ?? [];
     }
 
     /**
@@ -77,15 +228,25 @@ class AuthorityToTravel {
      * Create a new Authority to Travel request with routing
      * Supports OIC delegation
      */
-    public function create($data, $requesterRoleId, $requesterOffice) {
-        // Determine routing based on role and office
-        $routing = $this->determineRouting($requesterRoleId, $requesterOffice);
+    public function create($data, $requesterRoleId, $requesterOfficeId = null, $requesterOffice = null) {
+        // Get travel scope for routing determination
+        $travelScope = $data['travel_scope'] ?? null;
+        
+        // Normalize office data
+        if ($requesterOfficeId && !$requesterOffice) {
+            $office = getOfficeById($requesterOfficeId);
+            $requesterOffice = $office['office_code'] ?? $office['office_name'] ?? null;
+        }
+        $requesterOffice = $requesterOffice ?? ($data['requester_office'] ?? null);
+        
+        // Determine routing based on role, office, and travel scope
+        $routing = $this->determineRouting($requesterRoleId, $requesterOfficeId, $requesterOffice, $travelScope);
         
         // Get effective approver (may be OIC)
         $assignedApproverUserId = null;
         if ($routing['routing_stage'] === 'recommending') {
-            // Get unit head for this office
-            $recommenderRole = $this->getRecommenderRoleForOffice($requesterOffice);
+            // Get unit head for this office using database-driven routing
+            $recommenderRole = $this->getRecommenderRoleForOffice($requesterOffice, $travelScope);
             require_once __DIR__ . '/AdminUser.php';
             $userModel = new AdminUser();
             $unitHeads = $userModel->getByRole($recommenderRole, true);
@@ -105,7 +266,7 @@ class AuthorityToTravel {
             destination, fund_source, inclusive_dates,
             requesting_employee_name, request_date,
             travel_category, travel_scope, user_id, status,
-            current_approver_role, routing_stage, requester_office, requester_role_id,
+            current_approver_role, routing_stage, requester_office, requester_office_id, requester_role_id,
             assigned_approver_user_id, date_filed
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)";
         
@@ -129,6 +290,7 @@ class AuthorityToTravel {
             $routing['current_approver_role'],
             $routing['routing_stage'],
             $requesterOffice,
+            $requesterOfficeId,
             $requesterRoleId,
             $assignedApproverUserId,
             date('Y-m-d')
@@ -210,6 +372,7 @@ class AuthorityToTravel {
     /**
      * Get requests pending for a specific approver role
      * For unit heads, only shows requests from their supervised offices
+     * Uses database-driven unit_routing_config for office filtering
      */
     public function getPendingForRole($roleName, $roleId = null, $limit = 50, $offset = 0) {
         $params = [];
@@ -223,12 +386,11 @@ class AuthorityToTravel {
                   AND at.current_approver_role = ?";
         $params[] = $roleName;
         
-        // For unit heads, filter by their supervised offices
-        if ($roleId && in_array($roleId, UNIT_HEAD_ROLES) && isset(UNIT_HEAD_OFFICES[$roleId])) {
-            $offices = UNIT_HEAD_OFFICES[$roleId];
-            $placeholders = implode(',', array_fill(0, count($offices), '?'));
-            $sql .= " AND at.requester_office IN ($placeholders)";
-            $params = array_merge($params, $offices);
+        // For unit heads, filter by their supervised offices (from DB or static fallback)
+        if ($roleId && in_array($roleId, UNIT_HEAD_ROLES)) {
+            $officeIds = $this->getSupervisedOfficeIdsForRole($roleId);
+            $officeNames = $this->getSupervisedOfficesForRole($roleId);
+            $this->applyOfficeFilter($sql, $params, $officeIds, $officeNames, 'at.');
         }
         
         $sql .= " ORDER BY at.created_at ASC LIMIT ? OFFSET ?";
@@ -241,6 +403,7 @@ class AuthorityToTravel {
     /**
      * Get count of pending requests for a role
      * For unit heads, only counts requests from their supervised offices
+     * Uses database-driven unit_routing_config for office filtering
      */
     public function getPendingCountForRole($roleName, $roleId = null) {
         $params = [];
@@ -250,12 +413,11 @@ class AuthorityToTravel {
                 AND current_approver_role = ?";
         $params[] = $roleName;
         
-        // For unit heads, filter by their supervised offices
-        if ($roleId && in_array($roleId, UNIT_HEAD_ROLES) && isset(UNIT_HEAD_OFFICES[$roleId])) {
-            $offices = UNIT_HEAD_OFFICES[$roleId];
-            $placeholders = implode(',', array_fill(0, count($offices), '?'));
-            $sql .= " AND requester_office IN ($placeholders)";
-            $params = array_merge($params, $offices);
+        // For unit heads, filter by their supervised offices (from DB or static fallback)
+        if ($roleId && in_array($roleId, UNIT_HEAD_ROLES)) {
+            $officeIds = $this->getSupervisedOfficeIdsForRole($roleId);
+            $officeNames = $this->getSupervisedOfficesForRole($roleId);
+            $this->applyOfficeFilter($sql, $params, $officeIds, $officeNames, '');
         }
         
         $result = $this->db->query($sql, $params)->fetch();
@@ -265,6 +427,7 @@ class AuthorityToTravel {
     /**
      * Get all Authority to Travel requests with filters
      * Includes visibility filtering based on user role
+     * Uses database-driven unit_routing_config for office filtering
      */
     public function getAll($filters = [], $limit = 15, $offset = 0, $viewerRoleId = null, $viewerUserId = null) {
         $sql = "SELECT at.*, 
@@ -285,13 +448,10 @@ class AuthorityToTravel {
             $sql .= " AND at.user_id = ?";
             $params[] = $viewerUserId;
         } elseif ($viewerRoleId && in_array($viewerRoleId, UNIT_HEAD_ROLES)) {
-            // Unit heads see only requests from their supervised offices
-            if (isset(UNIT_HEAD_OFFICES[$viewerRoleId])) {
-                $offices = UNIT_HEAD_OFFICES[$viewerRoleId];
-                $placeholders = implode(',', array_fill(0, count($offices), '?'));
-                $sql .= " AND at.requester_office IN ($placeholders)";
-                $params = array_merge($params, $offices);
-            }
+            // Unit heads see only requests from their supervised offices (from DB or static fallback)
+            $officeIds = $this->getSupervisedOfficeIdsForRole($viewerRoleId);
+            $officeNames = $this->getSupervisedOfficesForRole($viewerRoleId);
+            $this->applyOfficeFilter($sql, $params, $officeIds, $officeNames, 'at.');
         }
 
         if (!empty($filters['user_id'])) {
@@ -315,7 +475,11 @@ class AuthorityToTravel {
         }
 
         if (!empty($filters['unit'])) {
-            $sql .= " AND at.requester_office = ?";
+            if (is_numeric($filters['unit'])) {
+                $sql .= " AND at.requester_office_id = ?";
+            } else {
+                $sql .= " AND at.requester_office = ?";
+            }
             $params[] = $filters['unit'];
         }
 
@@ -331,9 +495,10 @@ class AuthorityToTravel {
 
         // Filter by supervised offices for unit heads
         if (!empty($filters['supervised_offices']) && is_array($filters['supervised_offices'])) {
-            $placeholders = implode(',', array_fill(0, count($filters['supervised_offices']), '?'));
-            $sql .= " AND at.requester_office IN ($placeholders)";
-            $params = array_merge($params, $filters['supervised_offices']);
+            $filterOffices = $filters['supervised_offices'];
+            $ids = array_values(array_filter($filterOffices, 'is_numeric'));
+            $names = array_values(array_diff($filterOffices, $ids));
+            $this->applyOfficeFilter($sql, $params, $ids, $names, 'at.');
         }
 
         if (!empty($filters['date_from'])) {
@@ -374,22 +539,20 @@ class AuthorityToTravel {
     /**
      * Get count of Authority to Travel requests with filters
      * Includes visibility filtering based on user role
+     * Uses database-driven unit_routing_config for office filtering
      */
     public function getCount($filters = [], $viewerRoleId = null, $viewerUserId = null) {
         $sql = "SELECT COUNT(*) as total FROM authority_to_travel at WHERE 1=1";
         $params = [];
 
-        // Visibility filtering (same as getAll)
+        // Visibility filtering (same as getAll) - from DB or static fallback
         if ($viewerRoleId == ROLE_USER && $viewerUserId) {
             $sql .= " AND at.user_id = ?";
             $params[] = $viewerUserId;
         } elseif ($viewerRoleId && in_array($viewerRoleId, UNIT_HEAD_ROLES)) {
-            if (isset(UNIT_HEAD_OFFICES[$viewerRoleId])) {
-                $offices = UNIT_HEAD_OFFICES[$viewerRoleId];
-                $placeholders = implode(',', array_fill(0, count($offices), '?'));
-                $sql .= " AND at.requester_office IN ($placeholders)";
-                $params = array_merge($params, $offices);
-            }
+            $officeIds = $this->getSupervisedOfficeIdsForRole($viewerRoleId);
+            $officeNames = $this->getSupervisedOfficesForRole($viewerRoleId);
+            $this->applyOfficeFilter($sql, $params, $officeIds, $officeNames, 'at.');
         }
 
         if (!empty($filters['user_id'])) {
@@ -413,7 +576,11 @@ class AuthorityToTravel {
         }
 
         if (!empty($filters['unit'])) {
-            $sql .= " AND at.requester_office = ?";
+            if (is_numeric($filters['unit'])) {
+                $sql .= " AND at.requester_office_id = ?";
+            } else {
+                $sql .= " AND at.requester_office = ?";
+            }
             $params[] = $filters['unit'];
         }
 
@@ -429,9 +596,10 @@ class AuthorityToTravel {
 
         // Filter by supervised offices for unit heads
         if (!empty($filters['supervised_offices']) && is_array($filters['supervised_offices'])) {
-            $placeholders = implode(',', array_fill(0, count($filters['supervised_offices']), '?'));
-            $sql .= " AND at.requester_office IN ($placeholders)";
-            $params = array_merge($params, $filters['supervised_offices']);
+            $filterOffices = $filters['supervised_offices'];
+            $ids = array_values(array_filter($filterOffices, 'is_numeric'));
+            $names = array_values(array_diff($filterOffices, $ids));
+            $this->applyOfficeFilter($sql, $params, $ids, $names, 'at.');
         }
 
         if (!empty($filters['date_from'])) {
@@ -663,11 +831,12 @@ class AuthorityToTravel {
 
         // For unit heads, verify the request is from their supervised office
         if (in_array($userRoleId, UNIT_HEAD_ROLES)) {
-            if (isset(UNIT_HEAD_OFFICES[$userRoleId])) {
-                $supervisedOffices = UNIT_HEAD_OFFICES[$userRoleId];
-                if (!in_array($at['requester_office'], $supervisedOffices)) {
-                    return false;
-                }
+            $supervisedOffices = UNIT_HEAD_OFFICES[$userRoleId] ?? [];
+            $supervisedIds = $this->getSupervisedOfficeIdsForRole($userRoleId);
+            $matchesName = $at['requester_office'] && in_array($at['requester_office'], $supervisedOffices);
+            $matchesId = $at['requester_office_id'] && in_array((int) $at['requester_office_id'], $supervisedIds);
+            if (!$matchesName && !$matchesId) {
+                return false;
             }
         }
 
@@ -712,12 +881,11 @@ class AuthorityToTravel {
             // Regular users see only their own
             $baseCondition = ' AND user_id = ?';
             $params[] = $userId;
-        } elseif ($roleId && in_array($roleId, UNIT_HEAD_ROLES) && isset(UNIT_HEAD_OFFICES[$roleId])) {
-            // Unit heads see only their supervised offices
-            $offices = UNIT_HEAD_OFFICES[$roleId];
-            $placeholders = implode(',', array_fill(0, count($offices), '?'));
-            $baseCondition = " AND requester_office IN ($placeholders)";
-            $params = array_merge($params, $offices);
+        } elseif ($roleId && in_array($roleId, UNIT_HEAD_ROLES)) {
+            // Unit heads see only their supervised offices (id + legacy name)
+            $officeIds = $this->getSupervisedOfficeIdsForRole($roleId);
+            $officeNames = $this->getSupervisedOfficesForRole($roleId);
+            $this->applyOfficeFilter($baseCondition, $params, $officeIds, $officeNames, '');
         }
 
         $sql = "SELECT 
@@ -779,9 +947,23 @@ class AuthorityToTravel {
         $offices = UNIT_HEAD_OFFICES[$roleId];
         $roleName = $this->getRoleNameById($roleId);
         
-        // Build query that matches either requester_office OR current_approver_role
-        // This handles both new records (with requester_office) and old records (routed by role)
-        $placeholders = implode(',', array_fill(0, count($offices), '?'));
+        $officeIds = $this->getSupervisedOfficeIdsForRole($roleId);
+        $clauses = [];
+        $params = [];
+
+        if (!empty($officeIds)) {
+            $idPlaceholders = implode(',', array_fill(0, count($officeIds), '?'));
+            $clauses[] = "(at.requester_office_id IN ($idPlaceholders) OR u.office_id IN ($idPlaceholders))";
+            $params = array_merge($params, $officeIds, $officeIds);
+        }
+
+        if (!empty($offices)) {
+            $namePlaceholders = implode(',', array_fill(0, count($offices), '?'));
+            $clauses[] = "(at.requester_office IN ($namePlaceholders) OR u.employee_office IN ($namePlaceholders))";
+            $params = array_merge($params, $offices, $offices);
+        }
+
+        $officeClause = !empty($clauses) ? '(' . implode(' OR ', $clauses) . ')' : '1=1';
         
         $sql = "SELECT 
                 COUNT(*) as total,
@@ -796,13 +978,12 @@ class AuthorityToTravel {
                 SUM(CASE WHEN at.travel_category = 'personal' THEN 1 ELSE 0 END) as personal
                 FROM authority_to_travel at
                 LEFT JOIN admin_users u ON at.user_id = u.id
-                WHERE (at.requester_office IN ($placeholders) 
-                       OR u.employee_office IN ($placeholders)
+                WHERE ($officeClause 
                        OR at.current_approver_role = ?
                        OR (at.approved_by IS NOT NULL AND at.requester_role_id = ?))";
         
-        // Params: offices twice (for requester_office and employee_office), plus roleName, plus roleId
-        $params = array_merge($offices, $offices, [$roleName, ROLE_USER]);
+        $params[] = $roleName;
+        $params[] = ROLE_USER;
 
         return $this->db->query($sql, $params)->fetch();
     }
@@ -844,10 +1025,9 @@ class AuthorityToTravel {
             $sql .= " AND at.current_approver_role = ?";
             $params[] = $roleName;
             
+            $officeIds = $this->getSupervisedOfficeIdsForRole($roleId);
             $offices = UNIT_HEAD_OFFICES[$roleId];
-            $placeholders = implode(',', array_fill(0, count($offices), '?'));
-            $sql .= " AND at.requester_office IN ($placeholders)";
-            $params = array_merge($params, $offices);
+            $this->applyOfficeFilter($sql, $params, $officeIds, $offices, 'at.');
         } 
         // For ASDS, filter by final stage
         elseif ($roleId == ROLE_ASDS) {

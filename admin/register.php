@@ -4,7 +4,13 @@
  * SDO ATLAS - Schools Division Office Authority to Travel and Locator Approval System
  */
 
+// Prevent caching
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
 require_once __DIR__ . '/../config/admin_config.php';
+require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../models/AdminUser.php';
 
 $error = '';
@@ -14,8 +20,11 @@ $formData = [
     'email' => '',
     'employee_no' => '',
     'employee_position' => '',
-    'employee_office' => ''
+    'office_id' => ''
 ];
+
+// Get offices from master database table
+$offices = getSDOOfficesFromDB(true);
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -24,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'email' => trim($_POST['email'] ?? ''),
         'employee_no' => trim($_POST['employee_no'] ?? ''),
         'employee_position' => trim($_POST['employee_position'] ?? ''),
-        'employee_office' => $_POST['employee_office'] ?? '',
+        'office_id' => $_POST['office_id'] ?? '',
         'password' => $_POST['password'] ?? '',
         'password_confirm' => $_POST['password_confirm'] ?? ''
     ];
@@ -310,12 +319,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label" for="employee_office">Office/Division</label>
-                    <select class="form-control" id="employee_office" name="employee_office">
+                    <label class="form-label" for="office_id">Office/Division</label>
+                    <select class="form-control" id="office_id" name="office_id">
                         <option value="">-- Select Office --</option>
-                        <?php foreach (SDO_OFFICES as $code => $name): ?>
-                        <option value="<?php echo $code; ?>" <?php echo $formData['employee_office'] === $code ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($name); ?>
+                        <?php foreach ($offices as $office): ?>
+                        <option value="<?php echo $office['id']; ?>" <?php echo $formData['office_id'] == $office['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($office['office_name']); ?>
                         </option>
                         <?php endforeach; ?>
                     </select>

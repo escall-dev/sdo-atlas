@@ -30,28 +30,41 @@ define('ROLE_USER', 6);        // Regular Employee
 define('UNIT_HEAD_ROLES', [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF]);
 
 // OSDS Units (under AO V supervision)
-define('OSDS_UNITS', ['OSDS', 'Supply', 'Records', 'HR', 'Admin', 'Personnel', 'Cashier', 'Finance']);
+// Updated per Routing Directive - applies to local and international travel
+define('OSDS_UNITS', [
+    'OSDS', 'Personnel', 'Records and Supply',
+    'Procurement', 'General Services', 'Legal', 'ICT',
+    'Finance', 'Accounting', 'Budget'
+]);
 
 // Role to Office Mapping for Routing
+// Updated per Routing Directive: OSDS Chief as sole approving authority for all OSDS units
 define('ROLE_OFFICE_MAP', [
     'CID' => ROLE_CID_CHIEF,
     'SGOD' => ROLE_SGOD_CHIEF,
-    // OSDS units map to OSDS_CHIEF
+    // OSDS units map to OSDS_CHIEF (AO V)
     'OSDS' => ROLE_OSDS_CHIEF,
-    'Supply' => ROLE_OSDS_CHIEF,
-    'Records' => ROLE_OSDS_CHIEF,
-    'HR' => ROLE_OSDS_CHIEF,
-    'Admin' => ROLE_OSDS_CHIEF,
     'Personnel' => ROLE_OSDS_CHIEF,
-    'Cashier' => ROLE_OSDS_CHIEF,
-    'Finance' => ROLE_OSDS_CHIEF
+    'Records and Supply' => ROLE_OSDS_CHIEF,
+    'Procurement' => ROLE_OSDS_CHIEF,
+    'General Services' => ROLE_OSDS_CHIEF,
+    'Legal' => ROLE_OSDS_CHIEF,
+    'ICT' => ROLE_OSDS_CHIEF,
+    'Finance' => ROLE_OSDS_CHIEF,
+    'Accounting' => ROLE_OSDS_CHIEF,
+    'Budget' => ROLE_OSDS_CHIEF
 ]);
 
 // Offices supervised by each Unit Head Role (reverse mapping)
+// Updated per Routing Directive: OSDS Chief supervises all OSDS units
 define('UNIT_HEAD_OFFICES', [
     ROLE_CID_CHIEF => ['CID'],
     ROLE_SGOD_CHIEF => ['SGOD'],
-    ROLE_OSDS_CHIEF => ['OSDS', 'Supply', 'Records', 'HR', 'Admin', 'Personnel', 'Cashier', 'Finance']
+    ROLE_OSDS_CHIEF => [
+        'OSDS', 'Personnel', 'Records and Supply',
+        'Procurement', 'General Services', 'Legal', 'ICT',
+        'Finance', 'Accounting', 'Budget'
+    ]
 ]);
 
 // Recommending Authority Names by Role
@@ -125,6 +138,14 @@ define('DOCX_TEMPLATES', [
 define('TEMPLATE_DIR', __DIR__ . '/../reference-forms/doc-forms/');
 define('GENERATED_DIR', __DIR__ . '/../uploads/generated/');
 
+// LibreOffice path for PDF conversion
+// Common paths:
+// Windows: C:/Program Files/LibreOffice/program/soffice.exe
+// Windows (alternate): C:/Program Files (x86)/LibreOffice/program/soffice.exe
+// Linux: /usr/bin/soffice or /usr/bin/libreoffice
+// Mac: /Applications/LibreOffice.app/Contents/MacOS/soffice
+define('LIBREOFFICE_PATH', 'C:/Program Files/LibreOffice/program/soffice.exe');
+
 // Permission definitions
 define('PERMISSIONS', [
     'requests.file' => 'File LS/AT requests',
@@ -142,20 +163,108 @@ define('PERMISSIONS', [
 ]);
 
 // Offices/Units in SDO
+// DEPRECATED: Use getSDOOfficesFromDB() instead
+// This constant is kept for backward compatibility only
 define('SDO_OFFICES', [
+    // Executive Offices
     'SDS' => 'Office of the Schools Division Superintendent',
     'ASDS' => 'Office of the Assistant Schools Division Superintendent',
+    // Divisions
     'CID' => 'Curriculum Implementation Division',
     'SGOD' => 'School Governance and Operations Division',
-    'Admin' => 'Administrative Division',
-    'Finance' => 'Finance Division',
-    'ICTO' => 'Information and Communication Technology Office',
-    'Legal' => 'Legal Office',
-    'Records' => 'Records Section',
+    // OSDS Units/Sections (all route to OSDS Chief)
+    'OSDS' => 'Office of the Schools Division Superintendent Staff',
     'Personnel' => 'Personnel Section',
-    'Supply' => 'Supply Section',
-    'Cashier' => 'Cashier Section'
+    'Records and Supply' => 'Records and Supply Section',
+    'Procurement' => 'Procurement Section',
+    'General Services' => 'General Services Section',
+    'Legal' => 'Legal Unit',
+    'ICT' => 'Information and Communication Technology Unit',
+    'Finance' => 'Finance Division',
+    'Accounting' => 'Accounting Section',
+    'Budget' => 'Budget Section'
 ]);
+
+/**
+ * Get all offices from master database table
+ * @param bool $activeOnly Return only active offices
+ * @return array Array of offices with id, code, and name
+ */
+function getSDOOfficesFromDB($activeOnly = true) {
+    try {
+        $db = Database::getInstance();
+        $sql = "SELECT id, office_code, office_name, office_type, is_osds_unit, approver_role_id 
+                FROM sdo_offices";
+        if ($activeOnly) {
+            $sql .= " WHERE is_active = 1";
+        }
+        $sql .= " ORDER BY sort_order ASC, office_name ASC";
+        return $db->query($sql)->fetchAll();
+    } catch (Exception $e) {
+        // Fallback to static array if table doesn't exist
+        $result = [];
+        foreach (SDO_OFFICES as $code => $name) {
+            $result[] = [
+                'id' => null,
+                'office_code' => $code,
+                'office_name' => $name,
+                'office_type' => 'section',
+                'is_osds_unit' => in_array($code, OSDS_UNITS) ? 1 : 0,
+                'approver_role_id' => ROLE_OFFICE_MAP[$code] ?? ROLE_OSDS_CHIEF
+            ];
+        }
+        return $result;
+    }
+}
+
+/**
+ * Get office by ID from database
+ * @param int $officeId The office ID
+ * @return array|null Office data or null
+ */
+function getOfficeById($officeId) {
+    try {
+        $db = Database::getInstance();
+        $sql = "SELECT * FROM sdo_offices WHERE id = ?";
+        return $db->query($sql, [$officeId])->fetch();
+    } catch (Exception $e) {
+        return null;
+    }
+}
+
+/**
+ * Get approver role ID for an office by office ID
+ * @param int $officeId The office ID
+ * @return int Role ID of approving authority
+ */
+function getApproverRoleByOfficeId($officeId) {
+    try {
+        $db = Database::getInstance();
+        $sql = "SELECT approver_role_id FROM sdo_offices WHERE id = ? AND is_active = 1";
+        $result = $db->query($sql, [$officeId])->fetch();
+        if ($result && $result['approver_role_id']) {
+            return (int) $result['approver_role_id'];
+        }
+    } catch (Exception $e) {
+        // Fall through to default
+    }
+    return ROLE_OSDS_CHIEF; // Default to OSDS Chief
+}
+
+/**
+ * Get all OSDS unit IDs from database
+ * @return array Array of office IDs that are OSDS units
+ */
+function getOSDSUnitIds() {
+    try {
+        $db = Database::getInstance();
+        $sql = "SELECT id FROM sdo_offices WHERE is_osds_unit = 1 AND is_active = 1";
+        $results = $db->query($sql)->fetchAll();
+        return array_column($results, 'id');
+    } catch (Exception $e) {
+        return [];
+    }
+}
 
 /**
  * Helper function to check if user is a final approver (ASDS or Superadmin)
@@ -212,4 +321,81 @@ function getStatusBadge($status) {
  */
 function formatTrackingNo($trackingNo) {
     return '<span class="tracking-no">' . htmlspecialchars($trackingNo) . '</span>';
+}
+
+/**
+ * Get approver role ID from database routing config
+ * Falls back to static ROLE_OFFICE_MAP if not found in DB
+ * @param string $unitName The unit/office name
+ * @param string|null $travelScope Optional travel scope filter (local, international, all)
+ * @return int Role ID of the approving authority
+ */
+function getApproverRoleFromDB($unitName, $travelScope = null) {
+    try {
+        $db = Database::getInstance();
+        $sql = "SELECT approver_role_id FROM unit_routing_config 
+                WHERE unit_name = ? AND is_active = 1";
+        $params = [$unitName];
+        
+        if ($travelScope && $travelScope !== 'all') {
+            $sql .= " AND (travel_scope = ? OR travel_scope = 'all')";
+            $params[] = $travelScope;
+        }
+        
+        $sql .= " LIMIT 1";
+        $result = $db->query($sql, $params)->fetch();
+        
+        if ($result && isset($result['approver_role_id'])) {
+            return (int) $result['approver_role_id'];
+        }
+    } catch (Exception $e) {
+        // Fall back to static mapping on DB error
+    }
+    
+    // Fallback to static mapping
+    return ROLE_OFFICE_MAP[$unitName] ?? ROLE_OSDS_CHIEF;
+}
+
+/**
+ * Get all unit routing configurations from database
+ * @param bool $activeOnly Whether to return only active configurations
+ * @return array Array of routing configurations
+ */
+function getAllUnitRoutingConfigs($activeOnly = true) {
+    try {
+        $db = Database::getInstance();
+        $sql = "SELECT urc.*, ar.role_name, ar.description as role_description 
+                FROM unit_routing_config urc
+                LEFT JOIN admin_roles ar ON urc.approver_role_id = ar.id";
+        
+        if ($activeOnly) {
+            $sql .= " WHERE urc.is_active = 1";
+        }
+        
+        $sql .= " ORDER BY urc.sort_order ASC, urc.unit_name ASC";
+        
+        return $db->query($sql)->fetchAll();
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+/**
+ * Get units supervised by a specific approver role from database
+ * @param int $roleId The approver role ID
+ * @return array Array of unit names
+ */
+function getUnitsByApproverRole($roleId) {
+    try {
+        $db = Database::getInstance();
+        $sql = "SELECT unit_name FROM unit_routing_config 
+                WHERE approver_role_id = ? AND is_active = 1 
+                ORDER BY sort_order ASC";
+        
+        $results = $db->query($sql, [$roleId])->fetchAll();
+        return array_column($results, 'unit_name');
+    } catch (Exception $e) {
+        // Fallback to static mapping
+        return UNIT_HEAD_OFFICES[$roleId] ?? [];
+    }
 }

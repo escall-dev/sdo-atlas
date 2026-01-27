@@ -149,10 +149,20 @@ class AdminUser {
     public function create($data, $createdBy = null) {
         $passwordHash = !empty($data['password']) ? password_hash($data['password'], PASSWORD_DEFAULT) : null;
         
+        // Get office_id - either from data directly or lookup from office name
+        $officeId = $data['office_id'] ?? null;
+        $employeeOffice = $data['employee_office'] ?? null;
+        
+        // If office_id provided, get office_code for backward compatibility
+        if ($officeId && !$employeeOffice) {
+            $office = getOfficeById($officeId);
+            $employeeOffice = $office ? $office['office_code'] : null;
+        }
+        
         $sql = "INSERT INTO admin_users (
             email, password_hash, full_name, employee_no, employee_position, 
-            employee_office, role_id, status, is_active, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            employee_office, office_id, role_id, status, is_active, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         $this->db->query($sql, [
             $data['email'],
@@ -160,7 +170,8 @@ class AdminUser {
             $data['full_name'],
             $data['employee_no'] ?? null,
             $data['employee_position'] ?? null,
-            $data['employee_office'] ?? null,
+            $employeeOffice,
+            $officeId,
             $data['role_id'] ?? ROLE_USER,
             $data['status'] ?? 'pending',
             $data['is_active'] ?? 1,
@@ -181,10 +192,19 @@ class AdminUser {
 
         $passwordHash = password_hash($data['password'], PASSWORD_DEFAULT);
         
+        // Get office_id and office_code
+        $officeId = $data['office_id'] ?? null;
+        $employeeOffice = null;
+        
+        if ($officeId) {
+            $office = getOfficeById($officeId);
+            $employeeOffice = $office ? $office['office_code'] : null;
+        }
+        
         $sql = "INSERT INTO admin_users (
             email, password_hash, full_name, employee_no, employee_position, 
-            employee_office, role_id, status, is_active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 1)";
+            employee_office, office_id, role_id, status, is_active
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', 1)";
         
         $this->db->query($sql, [
             $data['email'],
@@ -192,7 +212,8 @@ class AdminUser {
             $data['full_name'],
             $data['employee_no'] ?? null,
             $data['employee_position'] ?? null,
-            $data['employee_office'] ?? null,
+            $employeeOffice,
+            $officeId,
             ROLE_USER  // Always register as regular user (role_id = 6)
         ]);
 

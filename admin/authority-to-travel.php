@@ -24,6 +24,7 @@ $error = '';
 $currentRoleId = $auth->getEffectiveRoleId();
 $currentRoleName = $auth->getEffectiveRoleName();
 $currentOffice = $currentUser['employee_office'] ?? '';
+$currentOfficeId = $currentUser['office_id'] ?? null;
 $isActingAsOIC = $auth->isActingAsOIC();
 
 // Handle form submissions
@@ -67,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $data['at_tracking_no'] = $trackingNo;
                 
                 // Create with routing
-                $id = $atModel->create($data, $currentRoleId, $currentOffice);
+                $id = $atModel->create($data, $currentRoleId, $currentOfficeId, $currentOffice);
                 $auth->logActivity('CREATE_AT', 'AT', $id, 'Created AT: ' . $trackingNo);
                 
                 $message = 'Authority to Travel filed successfully! Tracking Number: ' . $trackingNo;
@@ -173,7 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // View single request
 $viewData = null;
 if ($viewId) {
-    $viewData = $atModel->getById($viewId);
+        $viewData = $atModel->getById($viewId);
     if (!$viewData) {
         $error = 'Authority to Travel not found.';
     } elseif ($auth->isEmployee() && $viewData['user_id'] != $auth->getUserId()) {
@@ -181,10 +182,13 @@ if ($viewId) {
         $viewData = null;
     } elseif ($auth->isUnitHead()) {
         // Unit heads can only view requests from their supervised offices (or their own)
-        $supervisedOffices = UNIT_HEAD_OFFICES[$currentRoleId] ?? [];
-        if ($viewData['user_id'] != $auth->getUserId() && 
-            !in_array($viewData['requester_office'], $supervisedOffices) &&
-            $viewData['current_approver_role'] !== $currentRoleName) {
+            $supervisedOffices = $atModel->getSupervisedOfficesForRole($currentRoleId);
+            $supervisedOfficeIds = $atModel->getSupervisedOfficeIdsForRole($currentRoleId);
+            $matchesName = $viewData['requester_office'] && in_array($viewData['requester_office'], $supervisedOffices);
+            $matchesId = $viewData['requester_office_id'] && in_array((int) $viewData['requester_office_id'], $supervisedOfficeIds);
+            if ($viewData['user_id'] != $auth->getUserId() && 
+                !$matchesName && !$matchesId &&
+                $viewData['current_approver_role'] !== $currentRoleName) {
             $error = 'You do not have permission to view this request.';
             $viewData = null;
         }
@@ -198,10 +202,9 @@ if ($auth->isEmployee()) {
     $filters['user_id'] = $auth->getUserId();
 } elseif ($auth->isUnitHead()) {
     // Unit heads see only requests from their supervised offices
-    $supervisedOffices = UNIT_HEAD_OFFICES[$currentRoleId] ?? [];
-    if (!empty($supervisedOffices)) {
-        $filters['supervised_offices'] = $supervisedOffices;
-    }
+    $supervisedOffices = $atModel->getSupervisedOfficesForRole($currentRoleId);
+    $supervisedOfficeIds = $atModel->getSupervisedOfficeIdsForRole($currentRoleId);
+    $filters['supervised_offices'] = array_merge($supervisedOffices, $supervisedOfficeIds);
     // Show only pending in their queue by default
     if (empty($_GET['show_all'])) {
         $filters['current_approver_role'] = $currentRoleName;
@@ -512,7 +515,7 @@ if ($type === 'national') {
             </div>
             <div class="detail-card-body">
                 <a href="<?php echo navUrl('/api/generate-docx.php?type=at&id=' . $viewData['id']); ?>" class="btn btn-primary btn-block">
-                    <i class="fas fa-file-word"></i> Download DOCX
+                    <i class="fas fa-file-pdf"></i> Download PDF
                 </a>
             </div>
         </div>
@@ -969,7 +972,7 @@ function toggleTravelType() {
                             </a>
                             <?php endif; ?>
                             <?php if ($at['status'] === 'approved'): ?>
-                            <a href="<?php echo navUrl('/api/generate-docx.php?type=at&id=' . $at['id']); ?>" class="btn btn-icon" title="Download" style="color: var(--success);">
+                            <a href="<?php echo navUrl('/api/generate-docx.php?type=at&id=' . $at['id']); ?>" class="btn btn-icon" title="Download PDF" style="color: var(--success);">
                                 <i class="fas fa-download"></i>
                             </a>
                             <?php endif; ?>

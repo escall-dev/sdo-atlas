@@ -192,7 +192,7 @@ $totalPages = ceil($totalRequests / $perPage);
                                 ? navUrl('/api/generate-docx.php?type=ls&id=' . $request['id'])
                                 : navUrl('/api/generate-docx.php?type=at&id=' . $request['id']);
                             ?>
-                            <a href="<?php echo $downloadUrl; ?>" class="btn btn-icon" title="Download Document" style="color: var(--success);">
+                            <a href="<?php echo $downloadUrl; ?>" class="btn btn-icon" title="Download PDF" style="color: var(--success);">
                                 <i class="fas fa-download"></i>
                             </a>
                             <?php endif; ?>

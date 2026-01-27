@@ -4,6 +4,11 @@
  * SDO ATLAS - Superadmin only
  */
 
+// Prevent caching
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Cache-Control: post-check=0, pre-check=0", false);
+header("Pragma: no-cache");
+
 // Superadmin only - check before header.php outputs anything
 require_once __DIR__ . '/../includes/auth.php';
 $authCheck = auth();
@@ -21,6 +26,9 @@ require_once __DIR__ . '/../models/AdminUser.php';
 $userModel = new AdminUser();
 $message = '';
 $error = '';
+
+// Get offices from master database table for dropdown
+$offices = getSDOOfficesFromDB(true);
 
 // Handle actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -41,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $roleId = intval($_POST['role_id'] ?? 0);
         $employeeNo = trim($_POST['employee_no'] ?? '');
         $employeePosition = trim($_POST['employee_position'] ?? '');
-        $employeeOffice = trim($_POST['employee_office'] ?? '');
+        $officeId = intval($_POST['office_id'] ?? 0) ?: null;
         $isActive = isset($_POST['is_active']) ? 1 : 0;
 
         if ($fullName === '' || $email === '' || $password === '' || $roleId <= 0) {
@@ -58,7 +66,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'full_name' => $fullName,
                     'employee_no' => $employeeNo ?: null,
                     'employee_position' => $employeePosition ?: null,
-                    'employee_office' => $employeeOffice ?: null,
+                    'office_id' => $officeId,
                     'role_id' => $roleId,
                     'status' => $isActive ? 'active' : 'inactive',
                     'is_active' => $isActive,
@@ -85,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $roleId = intval($_POST['role_id'] ?? 0);
         $employeeNo = trim($_POST['employee_no'] ?? '');
         $employeePosition = trim($_POST['employee_position'] ?? '');
-        $employeeOffice = trim($_POST['employee_office'] ?? '');
+        $officeId = intval($_POST['office_id'] ?? 0) ?: null;
         $isActive = isset($_POST['is_active']) ? 1 : 0;
         $password = $_POST['password'] ?? '';
         $confirmPassword = $_POST['confirm_password'] ?? '';
@@ -103,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'role_id' => $roleId,
                 'employee_no' => $employeeNo ?: null,
                 'employee_position' => $employeePosition ?: null,
-                'employee_office' => $employeeOffice ?: null,
+                'office_id' => $officeId,
                 'status' => $isActive ? 'active' : 'inactive',
                 'is_active' => $isActive,
             ];
@@ -317,7 +325,7 @@ $pendingCount = $userModel->getPendingRegistrationsCount();
                                     data-role-id="<?php echo $user['role_id']; ?>"
                                     data-employee-no="<?php echo htmlspecialchars($user['employee_no'] ?? '', ENT_QUOTES); ?>"
                                     data-employee-position="<?php echo htmlspecialchars($user['employee_position'] ?? '', ENT_QUOTES); ?>"
-                                    data-employee-office="<?php echo htmlspecialchars($user['employee_office'] ?? '', ENT_QUOTES); ?>"
+                                    data-office-id="<?php echo intval($user['office_id'] ?? 0); ?>"
                                     data-is-active="<?php echo intval($user['is_active']); ?>">
                                 <i class="fas fa-edit"></i>
                             </button>
@@ -403,24 +411,13 @@ $pendingCount = $userModel->getPendingRegistrationsCount();
                     </div>
                     <div class="form-group">
                         <label class="form-label">Unit/Section</label>
-                        <select name="employee_office" class="form-control">
+                        <select name="office_id" class="form-control">
                             <option value="">-- Select Unit/Section --</option>
-                            <option value="OSDS">OSDS - Office of the Schools Division Superintendent</option>
-                            <option value="OASDS">OASDS - Office of the Assistant Schools Division Superintendent</option>
-                            <option value="CID">CID - Curriculum Implementation Division</option>
-                            <option value="SGOD">SGOD - School Governance and Operations Division</option>
-                            <option value="Administrative">Administrative</option>
-                            <option value="Finance">Finance</option>
-                            <option value="Personnel">Personnel</option>
-                            <option value="Records">Records</option>
-                            <option value="Legal">Legal</option>
-                            <option value="ICT">ICT - Information and Communications Technology</option>
-                            <option value="Planning">Planning</option>
-                            <option value="Supply">Supply</option>
-                            <option value="Cashier">Cashier</option>
-                            <option value="Budget">Budget</option>
-                            <option value="Accounting">Accounting</option>
-                            <option value="Other">Other</option>
+                            <?php foreach ($offices as $office): ?>
+                            <option value="<?php echo $office['id']; ?>">
+                                <?php echo htmlspecialchars($office['office_name']); ?>
+                            </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                 </div>
@@ -501,24 +498,13 @@ $pendingCount = $userModel->getPendingRegistrationsCount();
                     </div>
                     <div class="form-group">
                         <label class="form-label">Unit/Section</label>
-                        <select name="employee_office" id="edit_employee_office" class="form-control">
+                        <select name="office_id" id="edit_office_id" class="form-control">
                             <option value="">-- Select Unit/Section --</option>
-                            <option value="OSDS">OSDS - Office of the Schools Division Superintendent</option>
-                            <option value="OASDS">OASDS - Office of the Assistant Schools Division Superintendent</option>
-                            <option value="CID">CID - Curriculum Implementation Division</option>
-                            <option value="SGOD">SGOD - School Governance and Operations Division</option>
-                            <option value="Administrative">Administrative</option>
-                            <option value="Finance">Finance</option>
-                            <option value="Personnel">Personnel</option>
-                            <option value="Records">Records</option>
-                            <option value="Legal">Legal</option>
-                            <option value="ICT">ICT - Information and Communications Technology</option>
-                            <option value="Planning">Planning</option>
-                            <option value="Supply">Supply</option>
-                            <option value="Cashier">Cashier</option>
-                            <option value="Budget">Budget</option>
-                            <option value="Accounting">Accounting</option>
-                            <option value="Other">Other</option>
+                            <?php foreach ($offices as $office): ?>
+                            <option value="<?php echo $office['id']; ?>">
+                                <?php echo htmlspecialchars($office['office_name']); ?>
+                            </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                 </div>
@@ -614,7 +600,7 @@ function openEditUserModal(btn) {
     document.getElementById('edit_role_id').value = btn.getAttribute('data-role-id') || '';
     document.getElementById('edit_employee_no').value = btn.getAttribute('data-employee-no') || '';
     document.getElementById('edit_employee_position').value = btn.getAttribute('data-employee-position') || '';
-    document.getElementById('edit_employee_office').value = btn.getAttribute('data-employee-office') || '';
+    document.getElementById('edit_office_id').value = btn.getAttribute('data-office-id') || '';
     document.getElementById('edit_is_active').checked = (btn.getAttribute('data-is-active') === '1');
     document.getElementById('edit_password').value = '';
     document.getElementById('edit_confirm_password').value = '';

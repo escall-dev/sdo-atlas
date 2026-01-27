@@ -287,4 +287,91 @@ class DocxGenerator {
         $filename = basename($filePath);
         return BASE_URL . '/uploads/generated/' . $filename;
     }
+
+    /**
+     * Convert DOCX to PDF using LibreOffice
+     * @param string $docxPath Path to the DOCX file
+     * @return string Path to the generated PDF file
+     * @throws Exception if conversion fails
+     */
+    public function convertToPDF($docxPath) {
+        if (!file_exists($docxPath)) {
+            throw new Exception("DOCX file not found: " . $docxPath);
+        }
+
+        // Get LibreOffice path from config
+        $libreOfficePath = defined('LIBREOFFICE_PATH') ? LIBREOFFICE_PATH : 'soffice';
+        
+        // Prepare output directory
+        $outputDir = $this->outputDir;
+        
+        // Build the LibreOffice command
+        // --headless: run without UI
+        // --convert-to pdf: convert to PDF format
+        // --outdir: specify output directory
+        $command = sprintf(
+            '"%s" --headless --convert-to pdf --outdir "%s" "%s" 2>&1',
+            $libreOfficePath,
+            rtrim($outputDir, '/\\'),
+            $docxPath
+        );
+        
+        // Execute the conversion
+        exec($command, $output, $returnCode);
+        
+        if ($returnCode !== 0) {
+            throw new Exception("LibreOffice conversion failed. Error: " . implode("\n", $output));
+        }
+        
+        // Determine the PDF filename (same name as DOCX but with .pdf extension)
+        $pdfPath = $outputDir . basename($docxPath, '.docx') . '.pdf';
+        
+        if (!file_exists($pdfPath)) {
+            throw new Exception("PDF file was not created: " . $pdfPath);
+        }
+        
+        // Clean up the original DOCX file
+        if (file_exists($docxPath)) {
+            unlink($docxPath);
+        }
+        
+        return $pdfPath;
+    }
+
+    /**
+     * Generate Locator Slip PDF
+     */
+    public function generateLocatorSlipPDF($data) {
+        $docxPath = $this->generateLocatorSlip($data);
+        return $this->convertToPDF($docxPath);
+    }
+
+    /**
+     * Generate Authority to Travel PDF
+     */
+    public function generateATPDF($data) {
+        $docxPath = $this->generateAT($data);
+        return $this->convertToPDF($docxPath);
+    }
+
+    /**
+     * Clean up old generated files (older than 24 hours) - now includes PDFs
+     */
+    public function cleanupOldFilesPDF($hoursOld = 24) {
+        $files = array_merge(
+            glob($this->outputDir . '*.docx'),
+            glob($this->outputDir . '*.pdf')
+        );
+        $threshold = time() - ($hoursOld * 3600);
+        $deleted = 0;
+
+        foreach ($files as $file) {
+            if (filemtime($file) < $threshold) {
+                unlink($file);
+                $deleted++;
+            }
+        }
+
+        return $deleted;
+    }
 }

@@ -56,6 +56,7 @@ $pageTitles = [
     'authority-to-travel' => 'Authority to Travel',
     'my-requests' => 'My Requests',
     'users' => 'User Management',
+    'unit-routing' => 'Unit Routing Configuration',
     'logs' => 'Activity Logs',
     'profile' => 'My Profile',
     'oic-management' => 'OIC Management'
@@ -163,6 +164,11 @@ function navUrl($path) {
                         <?php endif; ?>
                     </span>
                     <span class="nav-text">Users</span>
+                </a>
+                
+                <a href="<?php echo navUrl('/unit-routing.php'); ?>" class="nav-item <?php echo $currentPage === 'unit-routing' ? 'active' : ''; ?>" data-tooltip="Unit Routing">
+                    <span class="nav-icon"><i class="fas fa-route"></i></span>
+                    <span class="nav-text">Unit Routing</span>
                 </a>
                 <?php endif; ?>
                 
