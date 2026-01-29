@@ -61,7 +61,7 @@ if ($auth->isEmployee()) {
             <h2><i class="fas fa-plus-circle"></i> File New Request</h2>
         </div>
         <div class="card-body">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                 <!-- Locator Slip -->
                 <a href="<?php echo navUrl('/locator-slips.php?action=new'); ?>" class="request-type-card" style="display: flex; flex-direction: column; align-items: center; padding: 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; text-decoration: none; color: white; transition: transform 0.2s, box-shadow 0.2s;">
                     <i class="fas fa-map-marker-alt" style="font-size: 2.5rem; margin-bottom: 12px;"></i>
@@ -69,25 +69,11 @@ if ($auth->isEmployee()) {
                     <span style="font-size: 0.8rem; opacity: 0.8; margin-top: 4px;">For local movement</span>
                 </a>
                 
-                <!-- AT - Local Official -->
-                <a href="<?php echo navUrl('/authority-to-travel.php?action=new&type=local'); ?>" class="request-type-card" style="display: flex; flex-direction: column; align-items: center; padding: 24px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 12px; text-decoration: none; color: white; transition: transform 0.2s, box-shadow 0.2s;">
-                    <i class="fas fa-car" style="font-size: 2.5rem; margin-bottom: 12px;"></i>
-                    <span style="font-weight: 600; font-size: 1rem;">AT - Local</span>
-                    <span style="font-size: 0.8rem; opacity: 0.8; margin-top: 4px;">Official - Within Region</span>
-                </a>
-                
-                <!-- AT - National Official -->
-                <a href="<?php echo navUrl('/authority-to-travel.php?action=new&type=national'); ?>" class="request-type-card" style="display: flex; flex-direction: column; align-items: center; padding: 24px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px; text-decoration: none; color: white; transition: transform 0.2s, box-shadow 0.2s;">
+                <!-- Authority to Travel (single card: Local/International and Official/Personal chosen on form) -->
+                <a href="<?php echo navUrl('/authority-to-travel.php?action=new'); ?>" class="request-type-card" style="display: flex; flex-direction: column; align-items: center; padding: 24px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 12px; text-decoration: none; color: white; transition: transform 0.2s, box-shadow 0.2s;">
                     <i class="fas fa-plane" style="font-size: 2.5rem; margin-bottom: 12px;"></i>
-                    <span style="font-weight: 600; font-size: 1rem;">AT - National</span>
-                    <span style="font-size: 0.8rem; opacity: 0.8; margin-top: 4px;">Official - Outside Region</span>
-                </a>
-                
-                <!-- AT - Personal -->
-                <a href="<?php echo navUrl('/authority-to-travel.php?action=new&type=personal'); ?>" class="request-type-card" style="display: flex; flex-direction: column; align-items: center; padding: 24px; background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); border-radius: 12px; text-decoration: none; color: white; transition: transform 0.2s, box-shadow 0.2s;">
-                    <i class="fas fa-umbrella-beach" style="font-size: 2.5rem; margin-bottom: 12px;"></i>
-                    <span style="font-weight: 600; font-size: 1rem;">AT - Personal</span>
-                    <span style="font-size: 0.8rem; opacity: 0.8; margin-top: 4px;">Non-official travel</span>
+                    <span style="font-weight: 600; font-size: 1rem;">Authority to Travel</span>
+                    <span style="font-size: 0.8rem; opacity: 0.8; margin-top: 4px;">Local or International, Official or Personal</span>
                 </a>
             </div>
         </div>

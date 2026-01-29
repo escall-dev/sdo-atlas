@@ -27,8 +27,11 @@ $userModel = new AdminUser();
 $message = '';
 $error = '';
 
-// Get offices from master database table for dropdown
+// Get offices from master database table for dropdown (legacy/flat list)
 $offices = getSDOOfficesFromDB(true);
+// Top-level offices (OSDS, SGOD, CID) and units-by-office for cascading dropdowns
+$topOffices = getSDOOfficesForOfficeDropdown();
+$unitsByOffice = getUnitsByOfficeForJs();
 
 // Handle actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -165,6 +168,13 @@ if (!empty($_GET['role_id'])) {
 if (!empty($_GET['search'])) {
     $filters['search'] = $_GET['search'];
 }
+// If office_id is provided, use that (more specific)
+// Otherwise, if office_code is provided, use that (broader filter)
+if (!empty($_GET['office_id'])) {
+    $filters['office_id'] = intval($_GET['office_id']);
+} elseif (!empty($_GET['office_code'])) {
+    $filters['office_code'] = $_GET['office_code'];
+}
 
 $page = max(1, intval($_GET['page'] ?? 1));
 $perPage = ITEMS_PER_PAGE;
@@ -233,6 +243,49 @@ $pendingCount = $userModel->getPendingRegistrationsCount();
                 <option value="pending" <?php echo ($_GET['status'] ?? '') === 'pending' ? 'selected' : ''; ?>>Pending</option>
                 <option value="active" <?php echo ($_GET['status'] ?? '') === 'active' ? 'selected' : ''; ?>>Active</option>
                 <option value="inactive" <?php echo ($_GET['status'] ?? '') === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+            </select>
+        </div> 
+        
+        <div class="filter-group">
+            <label>Office</label>
+            <select name="office_code" id="filter_office" class="filter-select">
+                <option value="">All Offices</option>
+                <?php 
+                // Determine selected office code - check GET param or derive from office_id
+                $selectedOfficeCode = $_GET['office_code'] ?? '';
+                if (empty($selectedOfficeCode) && !empty($_GET['office_id'])) {
+                    $selectedOfficeCode = getOfficeCodeFromUnitId(intval($_GET['office_id']));
+                }
+                foreach ($topOffices as $o): 
+                ?>
+                <option value="<?php echo htmlspecialchars($o['code']); ?>" <?php echo $selectedOfficeCode === $o['code'] ? 'selected' : ''; ?>>
+                    <?php echo htmlspecialchars($o['name']); ?>
+                </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        
+        <div class="filter-group">
+            <label>Unit/Section</label>
+            <select name="office_id" id="filter_unit_id" class="filter-select" <?php echo empty($_GET['office_code']) && empty($_GET['office_id']) ? 'disabled' : ''; ?> data-selected-unit="<?php echo !empty($_GET['office_id']) ? htmlspecialchars($_GET['office_id']) : ''; ?>">
+                <option value="">All Units</option>
+                <?php 
+                // Determine which office code to use for populating units
+                $selectedOfficeCode = $_GET['office_code'] ?? '';
+                // If office_id is set but office_code is not, look up the office code
+                if (empty($selectedOfficeCode) && !empty($_GET['office_id'])) {
+                    $selectedOfficeCode = getOfficeCodeFromUnitId(intval($_GET['office_id']));
+                }
+                
+                // If office_code is available, populate units
+                if (!empty($selectedOfficeCode)) {
+                    $units = getSDOUnitsByOfficeCode($selectedOfficeCode);
+                    foreach ($units as $unit) {
+                        $selected = (!empty($_GET['office_id']) && $_GET['office_id'] == $unit['id']) ? 'selected' : '';
+                        echo '<option value="' . $unit['id'] . '" ' . $selected . '>' . htmlspecialchars($unit['office_name']) . '</option>';
+                    }
+                }
+                ?>
             </select>
         </div>
         
@@ -326,6 +379,7 @@ $pendingCount = $userModel->getPendingRegistrationsCount();
                                     data-employee-no="<?php echo htmlspecialchars($user['employee_no'] ?? '', ENT_QUOTES); ?>"
                                     data-employee-position="<?php echo htmlspecialchars($user['employee_position'] ?? '', ENT_QUOTES); ?>"
                                     data-office-id="<?php echo intval($user['office_id'] ?? 0); ?>"
+                                    data-office-code="<?php echo htmlspecialchars(getOfficeCodeFromUnitId($user['office_id'] ?? 0), ENT_QUOTES); ?>"
                                     data-is-active="<?php echo intval($user['is_active']); ?>">
                                 <i class="fas fa-edit"></i>
                             </button>
@@ -410,16 +464,25 @@ $pendingCount = $userModel->getPendingRegistrationsCount();
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Unit/Section</label>
-                        <select name="office_id" class="form-control">
-                            <option value="">-- Select Unit/Section --</option>
-                            <?php foreach ($offices as $office): ?>
-                            <option value="<?php echo $office['id']; ?>">
-                                <?php echo htmlspecialchars($office['office_name']); ?>
-                            </option>
+                        <label class="form-label">Office</label>
+                        <select name="office" id="add_office" class="form-control" aria-label="Select office to enable Unit/Section">
+                            <option value="">-- Select Office --</option>
+                            <?php foreach ($topOffices as $o): ?>
+                            <option value="<?php echo htmlspecialchars($o['code']); ?>"><?php echo htmlspecialchars($o['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <span class="form-hint">OSDS, SGOD, or CID</span>
                     </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Unit/Section</label>
+                        <select name="office_id" id="add_unit_id" class="form-control" disabled>
+                            <option value="">-- Select Unit/Section --</option>
+                        </select>
+                        <span class="form-hint">Select an Office first</span>
+                    </div>
+                    <div class="form-group"></div>
                 </div>
 
                 <div class="form-row">
@@ -497,16 +560,23 @@ $pendingCount = $userModel->getPendingRegistrationsCount();
                         </select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Unit/Section</label>
-                        <select name="office_id" id="edit_office_id" class="form-control">
-                            <option value="">-- Select Unit/Section --</option>
-                            <?php foreach ($offices as $office): ?>
-                            <option value="<?php echo $office['id']; ?>">
-                                <?php echo htmlspecialchars($office['office_name']); ?>
-                            </option>
+                        <label class="form-label">Office</label>
+                        <select name="office" id="edit_office" class="form-control" aria-label="Select office to enable Unit/Section">
+                            <option value="">-- Select Office --</option>
+                            <?php foreach ($topOffices as $o): ?>
+                            <option value="<?php echo htmlspecialchars($o['code']); ?>"><?php echo htmlspecialchars($o['name']); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Unit/Section</label>
+                        <select name="office_id" id="edit_office_id" class="form-control">
+                            <option value="">-- Select Unit/Section --</option>
+                        </select>
+                    </div>
+                    <div class="form-group"></div>
                 </div>
 
                 <div class="form-row">
@@ -580,18 +650,91 @@ $pendingCount = $userModel->getPendingRegistrationsCount();
 </div>
 
 <script>
-function openAddUserModal() {
-    var modal = document.getElementById('addUserModal');
-    if (modal) {
-        modal.classList.add('active');
+var unitsByOffice = <?php echo json_encode($unitsByOffice); ?>;
+
+function fillUnitSelect(selectEl, officeCode) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '<option value="">-- Select Unit/Section --</option>';
+    selectEl.disabled = true;
+    if (!officeCode || !unitsByOffice[officeCode]) return;
+    var units = unitsByOffice[officeCode];
+    for (var i = 0; i < units.length; i++) {
+        var opt = document.createElement('option');
+        opt.value = units[i].id;
+        opt.textContent = units[i].office_name || units[i].office_code || units[i].id;
+        selectEl.appendChild(opt);
     }
+    selectEl.disabled = false;
+}
+
+// Filter bar office/unit cascading
+document.addEventListener('DOMContentLoaded', function() {
+    var filterOffice = document.getElementById('filter_office');
+    var filterUnit = document.getElementById('filter_unit_id');
+    if (filterOffice && filterUnit) {
+        // Initialize unit dropdown based on selected office (if any)
+        var initialOfficeCode = filterOffice.value;
+        if (initialOfficeCode) {
+            fillUnitSelect(filterUnit, initialOfficeCode);
+            // Preserve selected unit if it exists
+            var selectedUnitId = filterUnit.getAttribute('data-selected-unit');
+            if (selectedUnitId) {
+                filterUnit.value = selectedUnitId;
+            }
+        }
+        
+        filterOffice.addEventListener('change', function() {
+            var code = filterOffice.value;
+            if (code) {
+                fillUnitSelect(filterUnit, code);
+                // Clear unit selection when office changes (unless it's still valid)
+                setTimeout(function() {
+                    var currentValue = filterUnit.value;
+                    var options = Array.from(filterUnit.options).map(opt => opt.value);
+                    if (currentValue && !options.includes(currentValue)) {
+                        filterUnit.value = '';
+                    }
+                }, 100);
+            } else {
+                filterUnit.innerHTML = '<option value="">All Units</option>';
+                filterUnit.disabled = true;
+            }
+        });
+    }
+});
+
+function openAddUserModal() {
+    document.getElementById('add_office').value = '';
+    var u = document.getElementById('add_unit_id');
+    u.innerHTML = '<option value="">-- Select Unit/Section --</option>';
+    u.disabled = true;
+    var modal = document.getElementById('addUserModal');
+    if (modal) modal.classList.add('active');
 }
 function closeAddUserModal() {
     var modal = document.getElementById('addUserModal');
-    if (modal) {
-        modal.classList.remove('active');
-    }
+    if (modal) modal.classList.remove('active');
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    var addOffice = document.getElementById('add_office');
+    var addUnit = document.getElementById('add_unit_id');
+    if (addOffice && addUnit) {
+        addOffice.addEventListener('change', function() {
+            var code = addOffice.value;
+            fillUnitSelect(addUnit, code);
+        });
+    }
+    var editOffice = document.getElementById('edit_office');
+    var editUnit = document.getElementById('edit_office_id');
+    if (editOffice && editUnit) {
+        editOffice.addEventListener('change', function() {
+            var code = editOffice.value;
+            fillUnitSelect(editUnit, code);
+            editUnit.value = '';
+        });
+    }
+});
 
 function openEditUserModal(btn) {
     document.getElementById('edit_user_id').value = btn.getAttribute('data-user-id') || '';
@@ -600,7 +743,13 @@ function openEditUserModal(btn) {
     document.getElementById('edit_role_id').value = btn.getAttribute('data-role-id') || '';
     document.getElementById('edit_employee_no').value = btn.getAttribute('data-employee-no') || '';
     document.getElementById('edit_employee_position').value = btn.getAttribute('data-employee-position') || '';
-    document.getElementById('edit_office_id').value = btn.getAttribute('data-office-id') || '';
+    var officeCode = btn.getAttribute('data-office-code') || '';
+    var officeId = btn.getAttribute('data-office-id') || '';
+    var editOffice = document.getElementById('edit_office');
+    var editUnit = document.getElementById('edit_office_id');
+    if (editOffice) editOffice.value = officeCode;
+    fillUnitSelect(editUnit, officeCode);
+    if (editUnit && officeId) editUnit.value = officeId;
     document.getElementById('edit_is_active').checked = (btn.getAttribute('data-is-active') === '1');
     document.getElementById('edit_password').value = '';
     document.getElementById('edit_confirm_password').value = '';

@@ -23,8 +23,11 @@ $formData = [
     'office_id' => ''
 ];
 
-// Get offices from master database table
+// Get offices from master database table (legacy)
 $offices = getSDOOfficesFromDB(true);
+// Top-level offices (OSDS, SGOD, CID) and units-by-office for cascading dropdowns
+$topOffices = getSDOOfficesForOfficeDropdown();
+$unitsByOffice = getUnitsByOfficeForJs();
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -288,46 +291,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
 
             <form method="POST" action="">
-                <div class="form-group">
-                    <label class="form-label" for="full_name">Full Name <span class="required">*</span></label>
-                    <input type="text" class="form-control" id="full_name" name="full_name" 
-                           value="<?php echo htmlspecialchars($formData['full_name']); ?>"
-                           placeholder="Juan Dela Cruz" required>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label" for="email">Email Address <span class="required">*</span></label>
-                    <input type="email" class="form-control" id="email" name="email" 
-                           value="<?php echo htmlspecialchars($formData['email']); ?>"
-                           placeholder="juan.delacruz@deped.gov.ph" required>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="full_name">Full Name <span class="required">*</span></label>
+                        <input type="text" class="form-control" id="full_name" name="full_name" 
+                               value="<?php echo htmlspecialchars($formData['full_name']); ?>"
+                               placeholder="Juan Dela Cruz" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email <span class="required">*</span></label>
+                        <input type="email" class="form-control" id="email" name="email" 
+                               value="<?php echo htmlspecialchars($formData['email']); ?>"
+                               placeholder="user@deped.gov.ph" required>
+                    </div>
                 </div>
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label" for="employee_no">Employee Number</label>
-                        <input type="text" class="form-control" id="employee_no" name="employee_no" 
-                               value="<?php echo htmlspecialchars($formData['employee_no']); ?>"
-                               placeholder="E-12345">
+                        <label class="form-label" for="reg_office">Office</label>
+                        <select class="form-control" id="reg_office" name="office" aria-label="Select office to enable Unit/Section">
+                            <option value="">-- Select Office --</option>
+                            <?php foreach ($topOffices as $o): ?>
+                            <option value="<?php echo htmlspecialchars($o['code']); ?>"><?php echo htmlspecialchars($o['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="form-hint">OSDS, SGOD, or CID</span>
                     </div>
-                    
                     <div class="form-group">
-                        <label class="form-label" for="employee_position">Position/Designation</label>
-                        <input type="text" class="form-control" id="employee_position" name="employee_position" 
-                               value="<?php echo htmlspecialchars($formData['employee_position']); ?>"
-                               placeholder="Teacher I">
+                        <label class="form-label" for="reg_unit_id">Unit/Section</label>
+                        <select class="form-control" id="reg_unit_id" name="office_id" disabled>
+                            <option value="">-- Select Unit/Section --</option>
+                        </select>
+                        <span class="form-hint">Select an Office first</span>
                     </div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label" for="office_id">Office/Division</label>
-                    <select class="form-control" id="office_id" name="office_id">
-                        <option value="">-- Select Office --</option>
-                        <?php foreach ($offices as $office): ?>
-                        <option value="<?php echo $office['id']; ?>" <?php echo $formData['office_id'] == $office['id'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($office['office_name']); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
                 </div>
                 
                 <div class="form-row">
@@ -335,12 +331,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <label class="form-label" for="password">Password <span class="required">*</span></label>
                         <input type="password" class="form-control" id="password" name="password" 
                                placeholder="Min. 8 characters" required>
+                        <span class="form-hint">Minimum 8 characters</span>
                     </div>
-                    
                     <div class="form-group">
                         <label class="form-label" for="password_confirm">Confirm Password <span class="required">*</span></label>
                         <input type="password" class="form-control" id="password_confirm" name="password_confirm" 
                                placeholder="Re-enter password" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label" for="employee_no">Employee No. (optional)</label>
+                        <input type="text" class="form-control" id="employee_no" name="employee_no" 
+                               value="<?php echo htmlspecialchars($formData['employee_no']); ?>"
+                               placeholder="E-12345">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="employee_position">Position (optional)</label>
+                        <input type="text" class="form-control" id="employee_position" name="employee_position" 
+                               value="<?php echo htmlspecialchars($formData['employee_position']); ?>"
+                               placeholder="Teacher I">
                     </div>
                 </div>
                 
@@ -354,5 +365,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
         </div>
     </div>
+<script>
+var unitsByOfficeReg = <?php echo json_encode($unitsByOffice); ?>;
+(function() {
+    var selOffice = document.getElementById('reg_office');
+    var selUnit = document.getElementById('reg_unit_id');
+    if (!selOffice || !selUnit) return;
+    selOffice.addEventListener('change', function() {
+        var code = selOffice.value;
+        selUnit.innerHTML = '<option value="">-- Select Unit/Section --</option>';
+        selUnit.disabled = true;
+        if (code && unitsByOfficeReg[code]) {
+            var units = unitsByOfficeReg[code];
+            for (var i = 0; i < units.length; i++) {
+                var opt = document.createElement('option');
+                opt.value = units[i].id;
+                opt.textContent = units[i].office_name || units[i].office_code || units[i].id;
+                selUnit.appendChild(opt);
+            }
+            selUnit.disabled = false;
+        }
+    });
+})();
+</script>
 </body>
 </html>

@@ -98,6 +98,39 @@ class AdminUser {
             $params[] = $searchTerm;
         }
 
+        // Filter by office_id (specific unit) - takes precedence over office_code
+        if (!empty($filters['office_id'])) {
+            $sql .= " AND au.office_id = ?";
+            $params[] = $filters['office_id'];
+        }
+        // Filter by office_code (top-level office: OSDS, SGOD, CID) - only if office_id not set
+        elseif (!empty($filters['office_code'])) {
+            $officeCode = strtoupper(trim($filters['office_code']));
+            if (in_array($officeCode, ['OSDS', 'SGOD', 'CID'])) {
+                if ($officeCode === 'OSDS') {
+                    // OSDS: all units with is_osds_unit = 1
+                    $sql .= " AND EXISTS (
+                        SELECT 1 FROM sdo_offices o 
+                        WHERE o.id = au.office_id 
+                        AND o.is_osds_unit = 1 
+                        AND o.is_active = 1
+                    )";
+                } else {
+                    // SGOD or CID: units with parent_office_id matching the division
+                    $sql .= " AND EXISTS (
+                        SELECT 1 FROM sdo_offices o 
+                        WHERE o.id = au.office_id 
+                        AND o.parent_office_id = (
+                            SELECT id FROM sdo_offices 
+                            WHERE office_code = ? AND is_active = 1 LIMIT 1
+                        )
+                        AND o.is_active = 1
+                    )";
+                    $params[] = $officeCode;
+                }
+            }
+        }
+
         $sql .= " ORDER BY au.created_at DESC";
         
         if ($limit > 0) {
@@ -137,6 +170,39 @@ class AdminUser {
             $params[] = $searchTerm;
             $params[] = $searchTerm;
             $params[] = $searchTerm;
+        }
+
+        // Filter by office_id (specific unit) - takes precedence over office_code
+        if (!empty($filters['office_id'])) {
+            $sql .= " AND au.office_id = ?";
+            $params[] = $filters['office_id'];
+        }
+        // Filter by office_code (top-level office: OSDS, SGOD, CID) - only if office_id not set
+        elseif (!empty($filters['office_code'])) {
+            $officeCode = strtoupper(trim($filters['office_code']));
+            if (in_array($officeCode, ['OSDS', 'SGOD', 'CID'])) {
+                if ($officeCode === 'OSDS') {
+                    // OSDS: all units with is_osds_unit = 1
+                    $sql .= " AND EXISTS (
+                        SELECT 1 FROM sdo_offices o 
+                        WHERE o.id = au.office_id 
+                        AND o.is_osds_unit = 1 
+                        AND o.is_active = 1
+                    )";
+                } else {
+                    // SGOD or CID: units with parent_office_id matching the division
+                    $sql .= " AND EXISTS (
+                        SELECT 1 FROM sdo_offices o 
+                        WHERE o.id = au.office_id 
+                        AND o.parent_office_id = (
+                            SELECT id FROM sdo_offices 
+                            WHERE office_code = ? AND is_active = 1 LIMIT 1
+                        )
+                        AND o.is_active = 1
+                    )";
+                    $params[] = $officeCode;
+                }
+            }
         }
 
         $result = $this->db->query($sql, $params)->fetch();
@@ -286,7 +352,7 @@ class AdminUser {
 
         $allowedFields = [
             'email', 'full_name', 'employee_no', 'employee_position', 
-            'employee_office', 'role_id', 'status', 'is_active', 'avatar_url'
+            'employee_office', 'office_id', 'role_id', 'status', 'is_active', 'avatar_url'
         ];
 
         foreach ($allowedFields as $field) {

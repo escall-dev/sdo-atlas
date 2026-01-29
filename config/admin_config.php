@@ -31,16 +31,22 @@ define('UNIT_HEAD_ROLES', [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF]);
 
 // OSDS Units (under AO V supervision)
 // Updated per Routing Directive - applies to local and international travel
+// Note: Records is a separate unit from Property and Supply.
 define('OSDS_UNITS', [
-    'OSDS', 'Personnel', 'Records and Supply',
+    'OSDS', 'Personnel', 'Property and Supply', 'Records', 'Cash',
     'Procurement', 'General Services', 'Legal', 'ICT',
-    'Finance', 'Accounting', 'Budget'
+    'Accounting', 'Budget'
 ]);
 
 // Role to Office Mapping for Routing
 // Updated per Routing Directive: OSDS Chief as sole approving authority for all OSDS units
 define('ROLE_OFFICE_MAP', [
     'CID' => ROLE_CID_CHIEF,
+    // CID units map to CID_CHIEF
+    'IM' => ROLE_CID_CHIEF,
+    'LRM' => ROLE_CID_CHIEF,
+    'ALS' => ROLE_CID_CHIEF,
+    'DIS' => ROLE_CID_CHIEF,
     'SGOD' => ROLE_SGOD_CHIEF,
     // SGOD units map to SGOD_CHIEF
     'SMME' => ROLE_SGOD_CHIEF,
@@ -49,16 +55,18 @@ define('ROLE_OFFICE_MAP', [
     'PR' => ROLE_SGOD_CHIEF,
     'DRRM' => ROLE_SGOD_CHIEF,
     'EF' => ROLE_SGOD_CHIEF,
-    'SHN' => ROLE_SGOD_CHIEF,
+    'SHN_DENTAL' => ROLE_SGOD_CHIEF,
+    'SHN_MEDICAL' => ROLE_SGOD_CHIEF,
     // OSDS units map to OSDS_CHIEF (AO V)
     'OSDS' => ROLE_OSDS_CHIEF,
     'Personnel' => ROLE_OSDS_CHIEF,
-    'Records and Supply' => ROLE_OSDS_CHIEF,
+    'Property and Supply' => ROLE_OSDS_CHIEF,
+    'Records' => ROLE_OSDS_CHIEF,
+    'Cash' => ROLE_OSDS_CHIEF,
     'Procurement' => ROLE_OSDS_CHIEF,
     'General Services' => ROLE_OSDS_CHIEF,
     'Legal' => ROLE_OSDS_CHIEF,
     'ICT' => ROLE_OSDS_CHIEF,
-    'Finance' => ROLE_OSDS_CHIEF,
     'Accounting' => ROLE_OSDS_CHIEF,
     'Budget' => ROLE_OSDS_CHIEF
 ]);
@@ -66,12 +74,12 @@ define('ROLE_OFFICE_MAP', [
 // Offices supervised by each Unit Head Role (reverse mapping)
 // Updated per Routing Directive: OSDS Chief supervises all OSDS units
 define('UNIT_HEAD_OFFICES', [
-    ROLE_CID_CHIEF => ['CID'],
-    ROLE_SGOD_CHIEF => ['SGOD', 'SMME', 'HRD', 'SMN', 'PR', 'DRRM', 'EF', 'SHN'],
+    ROLE_CID_CHIEF => ['CID', 'IM', 'LRM', 'ALS', 'DIS'],
+    ROLE_SGOD_CHIEF => ['SGOD', 'SMME', 'HRD', 'SMN', 'PR', 'DRRM', 'EF', 'SHN_DENTAL', 'SHN_MEDICAL'],
     ROLE_OSDS_CHIEF => [
-        'OSDS', 'Personnel', 'Records and Supply',
+        'OSDS', 'Personnel', 'Property and Supply', 'Records', 'Cash',
         'Procurement', 'General Services', 'Legal', 'ICT',
-        'Finance', 'Accounting', 'Budget'
+        'Accounting', 'Budget'
     ]
 ]);
 
@@ -179,6 +187,11 @@ define('SDO_OFFICES', [
     'ASDS' => 'Office of the Assistant Schools Division Superintendent',
     // Divisions
     'CID' => 'Curriculum Implementation Division',
+    // CID Units (all route to CID Chief)
+    'IM' => 'Instructional Management',
+    'LRM' => 'Learning Resource Management',
+    'ALS' => 'Alternative Learning System',
+    'DIS' => 'District Instructional Supervision',
     'SGOD' => 'School Governance and Operations Division',
     // SGOD Units (all route to SGOD Chief)
     'SMME' => 'School Management Monitoring and Evaluation',
@@ -187,18 +200,20 @@ define('SDO_OFFICES', [
     'PR' => 'Planning and Research',
     'DRRM' => 'Disaster Risk Reduction and Management',
     'EF' => 'Education Facilities',
-    'SHN' => 'School Health and Nutrition',
-    // OSDS Units/Sections (all route to OSDS Chief)
+    'SHN_DENTAL' => 'School Health and Nutrition (Dental)',
+    'SHN_MEDICAL' => 'School Health and Nutrition (Medical)',
+    // OSDS Units (all route to OSDS Chief) - display without extensions
     'OSDS' => 'Office of the Schools Division Superintendent Staff',
-    'Personnel' => 'Personnel Section',
-    'Records and Supply' => 'Records and Supply Section',
-    'Procurement' => 'Procurement Section',
-    'General Services' => 'General Services Section',
-    'Legal' => 'Legal Unit',
-    'ICT' => 'Information and Communication Technology Unit',
-    'Finance' => 'Finance Division',
-    'Accounting' => 'Accounting Section',
-    'Budget' => 'Budget Section'
+    'Personnel' => 'Personnel',
+    'Property and Supply' => 'Property and Supply',
+    'Records' => 'Records',
+    'Cash' => 'Cash',
+    'Procurement' => 'Procurement',
+    'General Services' => 'General Services',
+    'Legal' => 'Legal',
+    'ICT' => 'Information and Communication Technology',
+    'Accounting' => 'Finance (Accounting)',
+    'Budget' => 'Finance (Budget)'
 ]);
 
 /**
@@ -280,6 +295,123 @@ function getOSDSUnitIds() {
     } catch (Exception $e) {
         return [];
     }
+}
+
+/**
+ * Top-level office codes for the Office dropdown (exactly 3 options).
+ * Unit dropdown cascades from the selected office.
+ */
+define('TOP_OFFICE_CODES', [
+    'OSDS' => 'Office of the Schools Division Superintendent Staff (OSDS)',
+    'SGOD' => 'School Governance and Operations Division (SGOD)',
+    'CID' => 'Curriculum Implementation Division (CID)'
+]);
+
+/**
+ * Get the 3 options for the Office dropdown.
+ * @return array [['code' => 'OSDS', 'name' => '...'], ...]
+ */
+function getSDOOfficesForOfficeDropdown() {
+    $out = [];
+    foreach (TOP_OFFICE_CODES as $code => $name) {
+        $out[] = ['code' => $code, 'name' => $name];
+    }
+    return $out;
+}
+
+/**
+ * Get units (sdo_offices rows) that belong to the given top-level office code.
+ * Returns only child units/sections, excluding the main office itself.
+ * OSDS: is_osds_unit=1 but NOT office_code='OSDS'; SGOD/CID: parent_office_id = division id only.
+ *
+ * @param string $officeCode One of 'OSDS', 'SGOD', 'CID'
+ * @return array Array of ['id' => int, 'office_code' => string, 'office_name' => string]
+ */
+function getSDOUnitsByOfficeCode($officeCode) {
+    try {
+        $db = Database::getInstance();
+        $code = strtoupper(trim($officeCode));
+        if (!defined('TOP_OFFICE_CODES') || !isset(TOP_OFFICE_CODES[$code])) {
+            return [];
+        }
+        if ($code === 'OSDS') {
+            $sql = "SELECT id, office_code, office_name FROM sdo_offices 
+                    WHERE is_active = 1 AND is_osds_unit = 1 AND office_code NOT IN ('OSDS', 'Finance')
+                    ORDER BY sort_order ASC, office_name ASC";
+            return $db->query($sql)->fetchAll();
+        }
+        if ($code === 'SGOD') {
+            $sql = "SELECT o.id, o.office_code, o.office_name FROM sdo_offices o 
+                    WHERE o.is_active = 1 
+                    AND o.parent_office_id = (SELECT id FROM sdo_offices WHERE office_code = 'SGOD' AND is_active = 1 LIMIT 1)
+                    AND o.office_code != 'SGOD'
+                    ORDER BY o.sort_order ASC, o.office_name ASC";
+            return $db->query($sql)->fetchAll();
+        }
+        if ($code === 'CID') {
+            $sql = "SELECT o.id, o.office_code, o.office_name FROM sdo_offices o 
+                    WHERE o.is_active = 1 
+                    AND o.parent_office_id = (SELECT id FROM sdo_offices WHERE office_code = 'CID' AND is_active = 1 LIMIT 1)
+                    AND o.office_code != 'CID'
+                    ORDER BY o.sort_order ASC, o.office_name ASC";
+            return $db->query($sql)->fetchAll();
+        }
+        return [];
+    } catch (Exception $e) {
+        return [];
+    }
+}
+
+/**
+ * Get units by office code keyed for JS: { 'OSDS' => [...], 'SGOD' => [...], 'CID' => [...] }.
+ * @return array
+ */
+function getUnitsByOfficeForJs() {
+    $out = [];
+    foreach (array_keys(TOP_OFFICE_CODES) as $code) {
+        $out[$code] = getSDOUnitsByOfficeCode($code);
+    }
+    return $out;
+}
+
+/**
+ * Derive top-level office code (OSDS/SGOD/CID) from a unit's office_id.
+ * Used when opening Edit User modal to set the Office dropdown from the user's office_id.
+ *
+ * @param int|null $unitId sdo_offices.id (user's office_id)
+ * @return string '' or 'OSDS'|'SGOD'|'CID'
+ */
+function getOfficeCodeFromUnitId($unitId) {
+    if (!$unitId) {
+        return '';
+    }
+    $office = getOfficeById($unitId);
+    if (!$office) {
+        return '';
+    }
+    $code = $office['office_code'] ?? '';
+    if (defined('TOP_OFFICE_CODES') && isset(TOP_OFFICE_CODES[$code])) {
+        return $code;
+    }
+    if (!empty($office['is_osds_unit'])) {
+        return 'OSDS';
+    }
+    $parentId = $office['parent_office_id'] ?? null;
+    if ($parentId) {
+        $parent = getOfficeById($parentId);
+        if ($parent && defined('TOP_OFFICE_CODES') && isset(TOP_OFFICE_CODES[$parent['office_code'] ?? ''])) {
+            return $parent['office_code'];
+        }
+    }
+    foreach (['SGOD', 'CID'] as $div) {
+        $units = getSDOUnitsByOfficeCode($div);
+        foreach ($units as $u) {
+            if ((int)($u['id'] ?? 0) === (int)$unitId) {
+                return $div;
+            }
+        }
+    }
+    return '';
 }
 
 /**

@@ -1057,7 +1057,7 @@ class AuthorityToTravel {
             return 'Personal';
         }
         if ($scope === 'national') {
-            return 'Official - National';
+            return 'Official - International';
         }
         return 'Official - Local';
     }

@@ -33,8 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($postAction === 'create') {
         try {
-            $category = $_POST['travel_category'] ?? 'official';
-            $scope = ($category === 'official') ? ($_POST['travel_scope'] ?? null) : null;
+            $scope = $_POST['travel_scope'] ?? 'local';
+            $category = ($scope === 'local') ? 'official' : ($_POST['travel_category'] ?? 'official');
             
             // Prepare data for validation
             $data = [
@@ -114,8 +114,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (!$atModel->canUserEdit($at, $auth->getUserId())) {
                 $error = 'You cannot edit this Authority to Travel.';
             } else {
-                $category = $_POST['travel_category'] ?? 'official';
-                $scope = ($category === 'official') ? ($_POST['travel_scope'] ?? null) : null;
+                $scope = $_POST['travel_scope'] ?? 'local';
+                $category = ($scope === 'local') ? 'official' : ($_POST['travel_category'] ?? 'official');
                 
                 $data = [
                     'employee_name' => $_POST['employee_name'],
@@ -277,14 +277,14 @@ $formData = [
     'permanent_station' => 'SDO San Pedro City'
 ];
 
-// Determine default type for form
+// Determine default type for form: scope-first (Local | International), then category when International
 $formCategory = 'official';
 $formScope = 'local';
 if ($type === 'national') {
     $formScope = 'national';
 } elseif ($type === 'personal') {
     $formCategory = 'personal';
-    $formScope = '';
+    $formScope = 'national';
 }
 ?>
 
@@ -653,31 +653,32 @@ if (!$editData || !$atModel->canUserEdit($editData, $auth->getUserId())) {
             <input type="hidden" name="action" value="edit">
             <input type="hidden" name="id" value="<?php echo $editData['id']; ?>">
             
-            <!-- Travel Type Selection -->
+            <!-- Travel Scope (Local = Official only; International = Official or Personal) -->
             <div class="form-group">
-                <label class="form-label">Travel Type <span class="required">*</span></label>
-                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                <label class="form-label">Travel Scope <span class="required">*</span></label>
+                <div style="display: flex; gap: 12px;">
                     <label class="checkbox-label" style="padding: 12px 20px; border: 2px solid var(--border-color); border-radius: 8px; cursor: pointer;">
-                        <input type="radio" name="travel_category" value="official" <?php echo ($editData['travel_category'] ?? 'official') === 'official' ? 'checked' : ''; ?> onchange="toggleTravelType()">
-                        <span>Official</span>
+                        <input type="radio" name="travel_scope" value="local" <?php echo ($editData['travel_scope'] ?? 'local') === 'local' ? 'checked' : ''; ?> onchange="toggleScopeCategoryEdit()">
+                        <span>Local (Within Region)</span>
                     </label>
                     <label class="checkbox-label" style="padding: 12px 20px; border: 2px solid var(--border-color); border-radius: 8px; cursor: pointer;">
-                        <input type="radio" name="travel_category" value="personal" <?php echo ($editData['travel_category'] ?? '') === 'personal' ? 'checked' : ''; ?> onchange="toggleTravelType()">
-                        <span>Personal</span>
+                        <input type="radio" name="travel_scope" value="national" <?php echo ($editData['travel_scope'] ?? '') === 'national' ? 'checked' : ''; ?> onchange="toggleScopeCategoryEdit()">
+                        <span>International (Outside Region)</span>
                     </label>
                 </div>
             </div>
             
-            <div class="form-group" id="scopeGroup" style="<?php echo ($editData['travel_category'] ?? 'official') === 'personal' ? 'display:none;' : ''; ?>">
-                <label class="form-label">Travel Scope <span class="required">*</span></label>
-                <div style="display: flex; gap: 12px;">
+            <!-- Travel Type (Official/Personal) — only when International -->
+            <div class="form-group" id="categoryGroupEdit" style="<?php echo ($editData['travel_scope'] ?? 'local') === 'local' ? 'display:none;' : ''; ?>">
+                <label class="form-label">Travel Type <span class="required">*</span></label>
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                     <label class="checkbox-label" style="padding: 12px 20px; border: 2px solid var(--border-color); border-radius: 8px; cursor: pointer;">
-                        <input type="radio" name="travel_scope" value="local" <?php echo ($editData['travel_scope'] ?? 'local') === 'local' ? 'checked' : ''; ?>>
-                        <span>Local (Within Region)</span>
+                        <input type="radio" name="travel_category" value="official" <?php echo ($editData['travel_category'] ?? 'official') === 'official' ? 'checked' : ''; ?> onchange="toggleTravelTypeEdit()">
+                        <span>Official</span>
                     </label>
                     <label class="checkbox-label" style="padding: 12px 20px; border: 2px solid var(--border-color); border-radius: 8px; cursor: pointer;">
-                        <input type="radio" name="travel_scope" value="national" <?php echo ($editData['travel_scope'] ?? '') === 'national' ? 'checked' : ''; ?>>
-                        <span>National (Outside Region)</span>
+                        <input type="radio" name="travel_category" value="personal" <?php echo ($editData['travel_category'] ?? '') === 'personal' ? 'checked' : ''; ?> onchange="toggleTravelTypeEdit()">
+                        <span>Personal</span>
                     </label>
                 </div>
             </div>
@@ -722,7 +723,7 @@ if (!$editData || !$atModel->canUserEdit($editData, $auth->getUserId())) {
                 </div>
             </div>
             
-            <div id="officialFields" style="<?php echo ($editData['travel_category'] ?? 'official') === 'personal' ? 'display:none;' : ''; ?>">
+            <div id="officialFields" style="<?php echo (($editData['travel_scope'] ?? 'local') === 'local' || ($editData['travel_category'] ?? 'official') === 'official') ? '' : 'display:none;'; ?>">
                 <div class="form-group">
                     <label class="form-label">Host of Activity</label>
                     <input type="text" name="host_of_activity" class="form-control"
@@ -754,17 +755,33 @@ if (!$editData || !$atModel->canUserEdit($editData, $auth->getUserId())) {
 </div>
 
 <script>
-function toggleTravelType() {
-    const category = document.querySelector('input[name="travel_category"]:checked').value;
-    const scopeGroup = document.getElementById('scopeGroup');
+function toggleScopeCategoryEdit() {
+    const scope = document.querySelector('input[name="travel_scope"]:checked')?.value;
+    const categoryGroup = document.getElementById('categoryGroupEdit');
     const officialFields = document.getElementById('officialFields');
+    const categoryOfficial = document.querySelector('input[name="travel_category"][value="official"]');
     
-    if (category === 'personal') {
-        scopeGroup.style.display = 'none';
-        officialFields.style.display = 'none';
+    if (scope === 'local') {
+        if (categoryGroup) categoryGroup.style.display = 'none';
+        if (officialFields) officialFields.style.display = 'block';
+        if (categoryOfficial) categoryOfficial.checked = true;
     } else {
-        scopeGroup.style.display = 'block';
-        officialFields.style.display = 'block';
+        if (categoryGroup) categoryGroup.style.display = 'block';
+        const category = document.querySelector('input[name="travel_category"]:checked')?.value;
+        if (officialFields) officialFields.style.display = (category === 'personal') ? 'none' : 'block';
+    }
+}
+function toggleTravelTypeEdit() {
+    const category = document.querySelector('input[name="travel_category"]:checked')?.value;
+    const officialFields = document.getElementById('officialFields');
+    const scope = document.querySelector('input[name="travel_scope"]:checked')?.value;
+    
+    if (scope === 'local') {
+        if (officialFields) officialFields.style.display = 'block';
+    } else if (category === 'personal') {
+        if (officialFields) officialFields.style.display = 'none';
+    } else {
+        if (officialFields) officialFields.style.display = 'block';
     }
 }
 </script>
@@ -819,7 +836,7 @@ function toggleTravelType() {
             <select name="scope" class="filter-select">
                 <option value="">All Scope</option>
                 <option value="local" <?php echo ($_GET['scope'] ?? '') === 'local' ? 'selected' : ''; ?>>Local</option>
-                <option value="national" <?php echo ($_GET['scope'] ?? '') === 'national' ? 'selected' : ''; ?>>National</option>
+                <option value="national" <?php echo ($_GET['scope'] ?? '') === 'national' ? 'selected' : ''; ?>>International</option>
             </select>
         </div>
         
@@ -1022,8 +1039,24 @@ function toggleTravelType() {
                 <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
                 <input type="hidden" name="action" value="create">
                 
-                <!-- Travel Type Selection -->
+                <!-- Step 1: Travel Scope (Local = Official only; International = Official or Personal) -->
                 <div class="form-group">
+                    <label class="form-label">Travel Scope <span class="required">*</span></label>
+                    <div style="display: flex; gap: 12px;">
+                        <label class="checkbox-label" style="padding: 12px 20px; border: 2px solid var(--border-color); border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="travel_scope" value="local" <?php echo $formScope === 'local' ? 'checked' : ''; ?> onchange="toggleScopeCategory()">
+                            <span>Local (Within Region)</span>
+                        </label>
+                        <label class="checkbox-label" style="padding: 12px 20px; border: 2px solid var(--border-color); border-radius: 8px; cursor: pointer;">
+                            <input type="radio" name="travel_scope" value="national" <?php echo $formScope === 'national' ? 'checked' : ''; ?> onchange="toggleScopeCategory()">
+                            <span>International (Outside Region)</span>
+                        </label>
+                    </div>
+                    <span class="form-hint">Local is Official only. International may be Official or Personal.</span>
+                </div>
+                
+                <!-- Step 2: Travel Type (Official/Personal) — only when International -->
+                <div class="form-group" id="categoryGroup" style="<?php echo $formScope === 'local' ? 'display:none;' : ''; ?>">
                     <label class="form-label">Travel Type <span class="required">*</span></label>
                     <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                         <label class="checkbox-label" style="padding: 12px 20px; border: 2px solid var(--border-color); border-radius: 8px; cursor: pointer;">
@@ -1033,20 +1066,6 @@ function toggleTravelType() {
                         <label class="checkbox-label" style="padding: 12px 20px; border: 2px solid var(--border-color); border-radius: 8px; cursor: pointer;">
                             <input type="radio" name="travel_category" value="personal" <?php echo $formCategory === 'personal' ? 'checked' : ''; ?> onchange="toggleTravelType()">
                             <span>Personal</span>
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="form-group" id="scopeGroup" style="<?php echo $formCategory === 'personal' ? 'display:none;' : ''; ?>">
-                    <label class="form-label">Travel Scope <span class="required">*</span></label>
-                    <div style="display: flex; gap: 12px;">
-                        <label class="checkbox-label" style="padding: 12px 20px; border: 2px solid var(--border-color); border-radius: 8px; cursor: pointer;">
-                            <input type="radio" name="travel_scope" value="local" <?php echo $formScope === 'local' ? 'checked' : ''; ?>>
-                            <span>Local (Within Region)</span>
-                        </label>
-                        <label class="checkbox-label" style="padding: 12px 20px; border: 2px solid var(--border-color); border-radius: 8px; cursor: pointer;">
-                            <input type="radio" name="travel_scope" value="national" <?php echo $formScope === 'national' ? 'checked' : ''; ?>>
-                            <span>National (Outside Region)</span>
                         </label>
                     </div>
                 </div>
@@ -1091,7 +1110,7 @@ function toggleTravelType() {
                     </div>
                 </div>
                 
-                <div id="officialFields" style="<?php echo $formCategory === 'personal' ? 'display:none;' : ''; ?>">
+                <div id="officialFields" style="<?php echo ($formScope === 'local' || $formCategory === 'official') ? '' : 'display:none;'; ?>">
                     <div class="form-group">
                         <label class="form-label">Host of Activity</label>
                         <input type="text" name="host_of_activity" class="form-control"
@@ -1131,17 +1150,34 @@ function closeNewModal() {
     window.history.replaceState({}, '', url);
 }
 
-function toggleTravelType() {
-    const category = document.querySelector('input[name="travel_category"]:checked').value;
-    const scopeGroup = document.getElementById('scopeGroup');
+function toggleScopeCategory() {
+    const scope = document.querySelector('input[name="travel_scope"]:checked')?.value;
+    const categoryGroup = document.getElementById('categoryGroup');
     const officialFields = document.getElementById('officialFields');
+    const categoryOfficial = document.querySelector('input[name="travel_category"][value="official"]');
     
-    if (category === 'personal') {
-        scopeGroup.style.display = 'none';
-        officialFields.style.display = 'none';
+    if (scope === 'local') {
+        if (categoryGroup) categoryGroup.style.display = 'none';
+        if (officialFields) officialFields.style.display = 'block';
+        if (categoryOfficial) categoryOfficial.checked = true;
     } else {
-        scopeGroup.style.display = 'block';
-        officialFields.style.display = 'block';
+        if (categoryGroup) categoryGroup.style.display = 'block';
+        const category = document.querySelector('input[name="travel_category"]:checked')?.value;
+        if (officialFields) officialFields.style.display = (category === 'personal') ? 'none' : 'block';
+    }
+}
+
+function toggleTravelType() {
+    const category = document.querySelector('input[name="travel_category"]:checked')?.value;
+    const officialFields = document.getElementById('officialFields');
+    const scope = document.querySelector('input[name="travel_scope"]:checked')?.value;
+    
+    if (scope === 'local') {
+        if (officialFields) officialFields.style.display = 'block';
+    } else if (category === 'personal') {
+        if (officialFields) officialFields.style.display = 'none';
+    } else {
+        if (officialFields) officialFields.style.display = 'block';
     }
 }
 
