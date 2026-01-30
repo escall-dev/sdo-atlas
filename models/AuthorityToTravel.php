@@ -268,7 +268,7 @@ class AuthorityToTravel {
             travel_category, travel_scope, user_id, status,
             current_approver_role, routing_stage, requester_office, requester_office_id, requester_role_id,
             assigned_approver_user_id, date_filed
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)";
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         
         $this->db->query($sql, [
             $data['at_tracking_no'],
@@ -287,6 +287,7 @@ class AuthorityToTravel {
             $data['travel_category'] ?? 'official',
             $data['travel_scope'] ?? null,
             $data['user_id'],
+            'pending',
             $routing['current_approver_role'],
             $routing['routing_stage'],
             $requesterOffice,
