@@ -16,23 +16,43 @@ class LocatorSlip {
     }
 
     /**
-     * Determine the approver role ID based on employee office
-     * CID staff → cid_chief
-     * SGOD staff → sgod_chief
-     * OSDS units (Supply, Records, HR, etc.) → osds_chief
+     * Determine the approver role ID (Office Chief) based on employee office/unit.
+     * Supports: (1) office code (SHN_DENTAL, IM, etc.), (2) office display name (e.g. "School Health and Nutrition (Dental)"),
+     * (3) ROLE_OFFICE_MAP. Ensures dentists/SHN route to SGOD Chief, not OSDS.
      */
     public function getApproverRoleForOffice($office) {
         $office = trim($office);
-        
-        if ($office === 'CID') {
-            return ROLE_CID_CHIEF;
-        } elseif ($office === 'SGOD') {
-            return ROLE_SGOD_CHIEF;
-        } elseif (in_array($office, OSDS_UNITS)) {
+        if ($office === '') {
             return ROLE_OSDS_CHIEF;
         }
-        
-        // Default to OSDS Chief
+        $officeLower = strtolower($office);
+        // 1) Exact code in ROLE_OFFICE_MAP (SHN_DENTAL, SHN_MEDICAL, IM, SMME, etc.)
+        if (defined('ROLE_OFFICE_MAP') && isset(ROLE_OFFICE_MAP[$office])) {
+            return ROLE_OFFICE_MAP[$office];
+        }
+        // 2) Match by exact display name (e.g. "School Health and Nutrition (Dental)" → SHN_DENTAL → SGOD Chief)
+        if (defined('SDO_OFFICES')) {
+            foreach (SDO_OFFICES as $code => $name) {
+                $name = trim($name);
+                if (strcasecmp($name, $office) === 0 && isset(ROLE_OFFICE_MAP[$code])) {
+                    return ROLE_OFFICE_MAP[$code];
+                }
+            }
+        }
+        // 3) Aliases for SHN/Dental/Medical (often stored in profile) → SGOD Chief
+        $sgodAliases = ['dental', 'medical', 'shn', 'school health and nutrition', 'school health'];
+        if (in_array($officeLower, $sgodAliases, true) || preg_match('/\b(dental|medical|shn)\b/i', $office)) {
+            return ROLE_SGOD_CHIEF;
+        }
+        if ($office === 'CID') {
+            return ROLE_CID_CHIEF;
+        }
+        if ($office === 'SGOD') {
+            return ROLE_SGOD_CHIEF;
+        }
+        if (in_array($office, OSDS_UNITS)) {
+            return ROLE_OSDS_CHIEF;
+        }
         return ROLE_OSDS_CHIEF;
     }
 
@@ -68,23 +88,42 @@ class LocatorSlip {
 
     /**
      * Create a new Locator Slip request with unit-based routing
+     * - If requestor is an Office Chief: route to ASDS for approval (ASDS is sole approver).
+     * - If requestor belongs to a unit under an office: route to their Office Chief only (Office Chief is sole approver; not forwarded to ASDS).
+     * @param int|null $requesterOfficeId When set (from admin_users.office_id), routing uses sdo_offices.approver_role_id for accuracy (e.g. dentist → SGOD Chief).
      */
-    public function create($data, $requesterRoleId = null, $requesterOffice = null) {
-        // Determine approver based on office
+    public function create($data, $requesterRoleId = null, $requesterOffice = null, $requesterOfficeId = null) {
         $approverRoleId = null;
         $assignedApproverUserId = null;
-        
-        if ($requesterOffice) {
-            $approverRoleId = $this->getApproverRoleForOffice($requesterOffice);
-            
-            // Get the unit head user for this role
-            require_once __DIR__ . '/AdminUser.php';
-            $userModel = new AdminUser();
+
+        require_once __DIR__ . '/AdminUser.php';
+        $userModel = new AdminUser();
+
+        // Office Chief as requestor: route to ASDS only
+        if ($requesterRoleId && in_array($requesterRoleId, UNIT_HEAD_ROLES)) {
+            $approverRoleId = ROLE_ASDS;
+            $asdsUsers = $userModel->getByRole(ROLE_ASDS, true);
+            if (!empty($asdsUsers)) {
+                $assignedApproverUserId = $asdsUsers[0]['id'];
+            }
+        }
+        // Requestor belongs to unit under office: resolve chief by office_id first (most reliable), then by office name
+        elseif ($requesterOfficeId && function_exists('getApproverRoleByOfficeId')) {
+            $approverRoleId = getApproverRoleByOfficeId((int) $requesterOfficeId);
             $unitHeads = $userModel->getByRole($approverRoleId, true);
-            
             if (!empty($unitHeads)) {
                 $unitHeadUserId = $unitHeads[0]['id'];
-                // Check if there's an active OIC
+                require_once __DIR__ . '/OICDelegation.php';
+                $oicModel = new OICDelegation();
+                $assignedApproverUserId = $oicModel->getEffectiveApproverUserId($approverRoleId, $unitHeadUserId);
+            }
+        }
+        elseif ($requesterOffice) {
+            $approverRoleId = $this->getApproverRoleForOffice($requesterOffice);
+            $unitHeads = $userModel->getByRole($approverRoleId, true);
+
+            if (!empty($unitHeads)) {
+                $unitHeadUserId = $unitHeads[0]['id'];
                 require_once __DIR__ . '/OICDelegation.php';
                 $oicModel = new OICDelegation();
                 $assignedApproverUserId = $oicModel->getEffectiveApproverUserId($approverRoleId, $unitHeadUserId);
@@ -181,13 +220,14 @@ class LocatorSlip {
             $sql .= " AND ls.user_id = ?";
             $params[] = $viewerUserId;
         } elseif ($viewerRoleId && in_array($viewerRoleId, UNIT_HEAD_ROLES)) {
-            // Unit heads see only requests assigned to them (or their OIC)
+            // Unit heads (Office Chiefs) see only requests assigned to them (or their OIC)
             $sql .= " AND (ls.assigned_approver_user_id = ? OR ls.assigned_approver_role_id = ?)";
             $params[] = $viewerUserId;
             $params[] = $viewerRoleId;
         } elseif ($viewerRoleId == ROLE_ASDS) {
-            // ASDS sees all requests
-            // No additional filter
+            // ASDS sees only Locator Slips assigned to ASDS (i.e. requests filed by Office Chiefs)
+            $sql .= " AND ls.assigned_approver_role_id = ?";
+            $params[] = ROLE_ASDS;
         } elseif ($viewerRoleId == ROLE_SUPERADMIN) {
             // Superadmin sees all requests
             // No additional filter
@@ -273,6 +313,9 @@ class LocatorSlip {
             $sql .= " AND (ls.assigned_approver_user_id = ? OR ls.assigned_approver_role_id = ?)";
             $params[] = $viewerUserId;
             $params[] = $viewerRoleId;
+        } elseif ($viewerRoleId == ROLE_ASDS) {
+            $sql .= " AND ls.assigned_approver_role_id = ?";
+            $params[] = ROLE_ASDS;
         } elseif ($viewerUserId && !in_array($viewerRoleId, [ROLE_ASDS, ROLE_SUPERADMIN])) {
             $sql .= " AND ls.user_id = ?";
             $params[] = $viewerUserId;
@@ -360,9 +403,12 @@ class LocatorSlip {
             return true;
         }
 
-        // Superadmin and ASDS can view all
-        if (in_array($viewerRoleId, [ROLE_SUPERADMIN, ROLE_ASDS])) {
+        // Superadmin can view all; ASDS can view only slips assigned to ASDS
+        if ($viewerRoleId == ROLE_SUPERADMIN) {
             return true;
+        }
+        if ($viewerRoleId == ROLE_ASDS) {
+            return (int) ($ls['assigned_approver_role_id'] ?? 0) === ROLE_ASDS;
         }
 
         // Unit heads can view if assigned to them

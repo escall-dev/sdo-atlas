@@ -291,7 +291,7 @@ class AdminAuth {
 
     /**
      * Check if current user can approve Locator Slips
-     * Includes OSDS_CHIEF (or OIC acting as OSDS_CHIEF) in addition to ASDS and Superadmin
+     * Office Chiefs (CID, SGOD, OSDS) can approve when slip is assigned to them; ASDS when assigned to ASDS; Superadmin always
      */
     public function canApproveLS() {
         if (!$this->user) {
@@ -300,12 +300,11 @@ class AdminAuth {
         if ($this->isApprover()) {
             return true;
         }
-        if ($this->user['role_id'] == ROLE_OSDS_CHIEF) {
+        if (in_array($this->user['role_id'], UNIT_HEAD_ROLES)) {
             return true;
         }
-        // Check if acting as OIC for OSDS Chief
         $oicInfo = $this->getActiveOICDelegation();
-        if ($oicInfo && $oicInfo['unit_head_role_id'] == ROLE_OSDS_CHIEF) {
+        if ($oicInfo && in_array($oicInfo['unit_head_role_id'], UNIT_HEAD_ROLES)) {
             return true;
         }
         return false;

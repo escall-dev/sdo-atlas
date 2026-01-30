@@ -1,7 +1,7 @@
 <?php
 /**
  * User Profile Page
- * SDO ATLAS
+ * SDO ATLAS - Office/Division and Unit are read-only except for Superadmin
  */
 
 require_once __DIR__ . '/../includes/header.php';
@@ -11,14 +11,41 @@ $userModel = new AdminUser();
 $message = '';
 $error = '';
 
+// Resolve office and unit for display (office_id → division name + unit name)
+$profileOfficeId = isset($currentUser['office_id']) ? (int) $currentUser['office_id'] : null;
+$profileOffice = $profileOfficeId && function_exists('getOfficeById') ? getOfficeById($profileOfficeId) : null;
+$profileUnitName = $profileOffice ? ($profileOffice['office_name'] ?? '') : '';
+$profileOfficeCode = $profileOfficeId && function_exists('getOfficeCodeFromUnitId') ? getOfficeCodeFromUnitId($profileOfficeId) : '';
+$profileDivisionName = ($profileOfficeCode && defined('TOP_OFFICE_CODES') && isset(TOP_OFFICE_CODES[$profileOfficeCode])) ? TOP_OFFICE_CODES[$profileOfficeCode] : '';
+// Fallback when no office_id: use employee_office text
+if ($profileUnitName === '' && !empty($currentUser['employee_office'])) {
+    $profileUnitName = $currentUser['employee_office'];
+    if (defined('SDO_OFFICES') && isset(SDO_OFFICES[$currentUser['employee_office']])) {
+        $profileUnitName = SDO_OFFICES[$currentUser['employee_office']];
+    }
+}
+$isSuperAdmin = $auth->isSuperAdmin();
+$topOffices = function_exists('getSDOOfficesForOfficeDropdown') ? getSDOOfficesForOfficeDropdown() : [];
+$unitsByOffice = function_exists('getUnitsByOfficeForJs') ? getUnitsByOfficeForJs() : [];
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $data = [
         'full_name' => trim($_POST['full_name'] ?? ''),
         'employee_no' => trim($_POST['employee_no'] ?? ''),
         'employee_position' => trim($_POST['employee_position'] ?? ''),
-        'employee_office' => $_POST['employee_office'] ?? ''
     ];
+    // Only Superadmin can change office/unit
+    if ($isSuperAdmin) {
+        $officeId = !empty($_POST['office_id']) ? (int) $_POST['office_id'] : null;
+        $data['office_id'] = $officeId;
+        if ($officeId && function_exists('getOfficeById')) {
+            $office = getOfficeById($officeId);
+            $data['employee_office'] = $office['office_code'] ?? $office['office_name'] ?? null;
+        } else {
+            $data['employee_office'] = $_POST['employee_office'] ?? '';
+        }
+    }
     
     // Validate
     if (empty($data['full_name'])) {
@@ -40,8 +67,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $auth->logActivity('update_profile', 'user', $auth->getUserId(), 'Updated profile');
             $message = 'Profile updated successfully!';
             
-            // Refresh user data
+            // Refresh user data and re-resolve office/unit
             $currentUser = $userModel->getById($auth->getUserId());
+            $profileOfficeId = isset($currentUser['office_id']) ? (int) $currentUser['office_id'] : null;
+            $profileOffice = $profileOfficeId && function_exists('getOfficeById') ? getOfficeById($profileOfficeId) : null;
+            $profileUnitName = $profileOffice ? ($profileOffice['office_name'] ?? '') : '';
+            $profileOfficeCode = $profileOfficeId && function_exists('getOfficeCodeFromUnitId') ? getOfficeCodeFromUnitId($profileOfficeId) : '';
+            $profileDivisionName = ($profileOfficeCode && defined('TOP_OFFICE_CODES') && isset(TOP_OFFICE_CODES[$profileOfficeCode])) ? TOP_OFFICE_CODES[$profileOfficeCode] : '';
+            if ($profileUnitName === '' && !empty($currentUser['employee_office'])) {
+                $profileUnitName = defined('SDO_OFFICES') && isset(SDO_OFFICES[$currentUser['employee_office']]) ? SDO_OFFICES[$currentUser['employee_office']] : $currentUser['employee_office'];
+            }
         }
     }
 }
@@ -55,13 +90,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?></div>
 <?php endif; ?>
 
-<div class="complaint-detail-grid" style="grid-template-columns: 1fr 350px;">
-    <!-- Profile Form -->
-    <div class="detail-card" style="order: 2;">
-        <div class="detail-card-header">
-            <h3><i class="fas fa-user-edit"></i> Edit Profile</h3>
-        </div>
-        <div class="detail-card-body" style="order: 2;">
+<div class="complaint-detail-grid" style="grid-template-columns: 1fr 350px; align-items: start;">
+    <!-- Left column: Edit Profile only (height matched to right column via JS) -->
+    <div>
+        <!-- Edit Profile -->
+        <div class="detail-card" id="profile-edit-card" style="max-height: var(--profile-sidebar-height, none); overflow: hidden; display: flex; flex-direction: column;">
+            <div class="detail-card-header" style="flex-shrink: 0;">
+                <h3><i class="fas fa-user-edit"></i> Edit Profile</h3>
+            </div>
+            <div class="detail-card-body" id="profile-edit-body" style="overflow-y: auto; min-height: 0; flex: 1; scrollbar-width: none; -ms-overflow-style: none;">
             <form method="POST" action="">
                 <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
                 
@@ -92,16 +129,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </div>
                 </div>
                 
-                <div class="form-group">
-                    <label class="form-label">Office/Division</label>
-                    <select name="employee_office" class="form-control">
-                        <option value="">-- Select Office --</option>
-                        <?php foreach (SDO_OFFICES as $code => $name): ?>
-                        <option value="<?php echo $code; ?>" <?php echo ($currentUser['employee_office'] ?? '') === $code ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($name); ?>
-                        </option>
-                        <?php endforeach; ?>
-                    </select>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Office/Division</label>
+                        <?php if ($isSuperAdmin): ?>
+                        <select name="office" id="profile_office" class="form-control" aria-label="Select office to enable Unit/Section">
+                            <option value="">-- Select Office --</option>
+                            <?php foreach ($topOffices as $o): ?>
+                            <option value="<?php echo htmlspecialchars($o['code']); ?>" <?php echo $profileOfficeCode === ($o['code'] ?? '') ? 'selected' : ''; ?>><?php echo htmlspecialchars($o['name']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="form-hint">OSDS, SGOD, or CID</span>
+                        <?php else: ?>
+                        <input type="text" class="form-control" readonly disabled
+                               value="<?php echo htmlspecialchars($profileDivisionName ?: $profileUnitName ?: ($currentUser['employee_office'] ?? '—')); ?>">
+                        <span class="form-hint">Office/Division can only be changed by Superadmin</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Unit/Section</label>
+                        <?php if ($isSuperAdmin): ?>
+                        <select name="office_id" id="profile_unit_id" class="form-control" <?php echo empty($profileOfficeCode) ? 'disabled' : ''; ?>>
+                            <option value="">-- Select Unit/Section --</option>
+                            <?php
+                            if ($profileOfficeCode && !empty($unitsByOffice[$profileOfficeCode])) {
+                                foreach ($unitsByOffice[$profileOfficeCode] as $u) {
+                                    $sel = ($profileOfficeId && (int)$u['id'] === $profileOfficeId) ? ' selected' : '';
+                                    echo '<option value="' . (int)$u['id'] . '"' . $sel . '>' . htmlspecialchars($u['office_name'] ?? $u['office_code'] ?? $u['id']) . '</option>';
+                                }
+                            }
+                            ?>
+                        </select>
+                        <span class="form-hint">Select an Office first</span>
+                        <?php else: ?>
+                        <input type="text" class="form-control" readonly disabled
+                               value="<?php echo htmlspecialchars($profileUnitName ?: '—'); ?>">
+                        <span class="form-hint">Unit you belong to</span>
+                        <?php endif; ?>
+                    </div>
                 </div>
                 
                 <hr style="border: none; border-top: 1px solid var(--border-color); margin: 24px 0;">
@@ -126,16 +191,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <i class="fas fa-save"></i> Save Changes
                 </button>
             </form>
+            </div>
         </div>
     </div>
-    
-    <!-- Account Info -->
-    <div style="display: flex; flex-direction: column; gap: 20px; order: 1;">
+
+    <!-- Right column: Avatar, then Account Info (height reference for Edit Profile card) -->
+    <div id="profile-sidebar" style="display: flex; flex-direction: column; gap: 20px;">
+        <!-- Avatar (square card) -->
+        <div class="detail-card" style="background: linear-gradient(135deg,rgba(6, 8, 120, 0.76) 0%,rgb(185, 121, 18) 100%); color: white; aspect-ratio: 1; max-height: 350px;">
+            <div class="detail-card-body" style="text-align: center; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0;">
+                <div class="user-avatar-placeholder" style="width: 64px; height: 64px; font-size: 1.75rem; margin: 0 auto 12px; flex-shrink: 0;">
+                    <?php echo strtoupper(substr($currentUser['full_name'], 0, 1)); ?>
+                </div>
+                <h3 style="margin: 0 0 4px; font-size: 1rem; line-height: 1.3;"><?php echo htmlspecialchars($currentUser['full_name']); ?></h3>
+                <p style="opacity: 0.8; margin: 0; font-size: 0.85rem;"><?php echo htmlspecialchars($currentUser['employee_position'] ?? 'SDO Employee'); ?></p>
+            </div>
+        </div>
+
+        <!-- Account Info -->
         <div class="detail-card">
             <div class="detail-card-header">
                 <h3><i class="fas fa-id-card"></i> Account Info</h3>
             </div>
-            <div class="detail-card-body" style="order: 1;">
+            <div class="detail-card-body">
                 <div class="detail-item">
                     <label>Role</label>
                     <span class="role-badge role-<?php echo strtolower(str_replace(' ', '-', $currentUser['role_name'])); ?>">
@@ -158,17 +236,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
         </div>
-        
-        <div class="detail-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-            <div class="detail-card-body" style="text-align: center; padding: 30px;">
-                <div class="user-avatar-placeholder" style="width: 80px; height: 80px; font-size: 2rem; margin: 0 auto 16px;">
-                    <?php echo strtoupper(substr($currentUser['full_name'], 0, 1)); ?>
-                </div>
-                <h3 style="margin-bottom: 4px;"><?php echo htmlspecialchars($currentUser['full_name']); ?></h3>
-                <p style="opacity: 0.8; margin: 0;"><?php echo htmlspecialchars($currentUser['employee_position'] ?? 'SDO Employee'); ?></p>
-            </div>
-        </div>
     </div>
 </div>
+
+<style>
+#profile-edit-body::-webkit-scrollbar {
+    display: none;
+}
+</style>
+
+<script>
+(function() {
+    function matchEditProfileHeight() {
+        var sidebar = document.getElementById('profile-sidebar');
+        var editCard = document.getElementById('profile-edit-card');
+        if (sidebar && editCard) {
+            var h = sidebar.offsetHeight;
+            editCard.style.maxHeight = h + 'px';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        matchEditProfileHeight();
+        window.addEventListener('resize', matchEditProfileHeight);
+    });
+})();
+</script>
+
+<?php if ($isSuperAdmin && !empty($unitsByOffice)): ?>
+<script>
+(function() {
+    var unitsByOffice = <?php echo json_encode($unitsByOffice); ?>;
+    function fillUnitSelect(selectEl, officeCode) {
+        if (!selectEl) return;
+        selectEl.innerHTML = '<option value="">-- Select Unit/Section --</option>';
+        selectEl.disabled = true;
+        if (!officeCode || !unitsByOffice[officeCode]) return;
+        var units = unitsByOffice[officeCode];
+        for (var i = 0; i < units.length; i++) {
+            var opt = document.createElement('option');
+            opt.value = units[i].id;
+            opt.textContent = units[i].office_name || units[i].office_code || units[i].id;
+            selectEl.appendChild(opt);
+        }
+        selectEl.disabled = false;
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+        var profileOffice = document.getElementById('profile_office');
+        var profileUnit = document.getElementById('profile_unit_id');
+        if (profileOffice && profileUnit) {
+            profileOffice.addEventListener('change', function() {
+                var code = profileOffice.value;
+                fillUnitSelect(profileUnit, code);
+                profileUnit.value = '';
+            });
+        }
+    });
+})();
+</script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/../includes/footer.php'; ?>

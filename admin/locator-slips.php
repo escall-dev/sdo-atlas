@@ -46,11 +46,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'user_id' => $auth->getUserId()
             ];
             
-            // Get requester info for routing
+            // Get requester info for routing (office_id preferred so dentist/SHN etc. route to SGOD Chief)
             $requesterRoleId = $currentUser['role_id'];
             $requesterOffice = $currentUser['employee_office'] ?? $_POST['employee_office'];
+            $requesterOfficeId = !empty($currentUser['office_id']) ? (int) $currentUser['office_id'] : null;
             
-            $id = $lsModel->create($data, $requesterRoleId, $requesterOffice);
+            $id = $lsModel->create($data, $requesterRoleId, $requesterOffice, $requesterOfficeId);
             $auth->logActivity('create', 'locator_slip', $id, 'Created Locator Slip: ' . $controlNo);
             
             $message = 'Locator Slip filed successfully! Tracking Number: ' . $controlNo;
@@ -97,12 +98,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Check if user can approve:
         // 1. They are the assigned approver
         // 2. They are acting as OIC for the assigned approver's role
-        // 3. They are ASDS or superadmin
-        $canApprove = ($ls['assigned_approver_user_id'] == $auth->getUserId()) || 
-                     $auth->isASDS() || 
-                     $auth->isSuperAdmin();
-        
-        // Also check if user is OIC for the assigned approver's role
+        // 3. ASDS only when this slip is assigned to ASDS (Office Chief as requestor)
+        // 4. Superadmin can override
+        $canApprove = ($ls['assigned_approver_user_id'] == $auth->getUserId()) ||
+                     $auth->isSuperAdmin() ||
+                     ($auth->isASDS() && (int)($ls['assigned_approver_role_id'] ?? 0) === ROLE_ASDS);
+
         if (!$canApprove && $auth->isActingAsOIC()) {
             $oicInfo = $auth->getActiveOICDelegation();
             if ($oicInfo && $oicInfo['unit_head_role_id'] == $ls['assigned_approver_role_id']) {
@@ -139,15 +140,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    if ($postAction === 'reject' && $auth->canApproveLS()) {
+    if ($postAction === 'reject') {
         $id = $_POST['id'];
         $reason = $_POST['rejection_reason'] ?? null;
         $ls = $lsModel->getById($id);
-        
-        if ($ls && $ls['status'] === 'pending') {
+
+        $canReject = $ls && $ls['status'] === 'pending' &&
+            (($ls['assigned_approver_user_id'] == $auth->getUserId()) ||
+             $auth->isSuperAdmin() ||
+             ($auth->isASDS() && (int)($ls['assigned_approver_role_id'] ?? 0) === ROLE_ASDS));
+        if (!$canReject && $ls && $auth->isActingAsOIC()) {
+            $oicInfo = $auth->getActiveOICDelegation();
+            if ($oicInfo && $oicInfo['unit_head_role_id'] == $ls['assigned_approver_role_id']) {
+                $canReject = true;
+            }
+        }
+
+        if ($canReject) {
             $lsModel->reject($id, $auth->getUserId(), $reason);
             $auth->logActivity('reject', 'locator_slip', $id, 'Rejected Locator Slip: ' . $ls['ls_control_no']);
             $message = 'Locator Slip rejected.';
+        } elseif ($ls && $ls['status'] === 'pending') {
+            $error = 'You do not have permission to reject this request.';
         }
     }
 }
@@ -434,12 +448,11 @@ if (!$editData || !$lsModel->canUserEdit($editData, $auth->getUserId())) {
     <div class="complaint-sidebar">
         <!-- Actions -->
         <?php 
-        $canApprove = $viewData['status'] === 'pending' && 
-                     ($viewData['assigned_approver_user_id'] == $auth->getUserId() || 
-                      $auth->isASDS() || 
-                      $auth->isSuperAdmin());
-        
-        // Also check if user is OIC for the assigned approver's role
+        $canApprove = $viewData['status'] === 'pending' &&
+                     ($viewData['assigned_approver_user_id'] == $auth->getUserId() ||
+                      $auth->isSuperAdmin() ||
+                      ($auth->isASDS() && (int)($viewData['assigned_approver_role_id'] ?? 0) === ROLE_ASDS));
+
         if (!$canApprove && $viewData['status'] === 'pending' && $auth->isActingAsOIC()) {
             $oicInfo = $auth->getActiveOICDelegation();
             if ($oicInfo && $oicInfo['unit_head_role_id'] == $viewData['assigned_approver_role_id']) {
