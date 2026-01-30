@@ -10,21 +10,20 @@ The SDO has **three top-level offices** (divisions). Each has one **Office Chief
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                    SDO – TOP-LEVEL OFFICES (3 DIVISIONS)                          │
+│                    SDO – TOP-LEVEL OFFICES (3 DIVISIONS)                        │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│                                                                                  │
-│   ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐     │
-│   │        OSDS          │  │        SGOD         │  │        CID         │     │
-│   │  (Office of the      │  │  School Governance  │  │  Curriculum         │     │
-│   │   SDS Staff)         │  │  and Operations     │  │  Implementation     │     │
-│   │                      │  │  Division           │  │  Division           │     │
-│   │  Chief: AO V         │  │  Chief: SGOD Chief  │  │  Chief: CID Chief    │     │
-│   │  Role: OSDS_CHIEF(3) │  │  Role: SGOD_CHIEF(5)│  │  Role: CID_CHIEF(4) │     │
-│   └──────────┬──────────┘  └──────────┬──────────┘  └──────────┬──────────┘     │
-│              │                        │                        │                 │
-│              ▼                        ▼                        ▼                 │
-│        [Units below]            [Units below]            [Units below]           │
-│                                                                                  │
+│                                                                                 │
+│   ┌─────────────────────┐   ┌─────────────────────┐  ┌────────────────────┐     │
+│   │        OSDS         │   │        SGOD         │  │        CID         │     │
+│   │  (Office of the     │   │  School Governance  │  │  Curriculum        │     │
+│   │   SDS Staff)        │   │  and Operations     │  │  Implementation    │     │
+│   │                     │   │  Division           │  │  Division          │     │
+│   │  Chief: AO V        │   │   Chief: SGOD Chief │  │  Chief: CID Chief  │     │
+│   │  Role: OSDS_CHIEF(3)│   └─────────┬──────────-┘  └──────────┬─────────┘     │
+│              │                        │                        │                │
+│              ▼                        ▼                        ▼                │
+│        [Units below]            [Units below]            [Units below]          │
+│                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -34,64 +33,64 @@ The SDO has **three top-level offices** (divisions). Each has one **Office Chief
 
 ### 2.1 OSDS – Office of the Schools Division Superintendent Staff
 
-| Role ID | Role Name   | Display Title | Supervises |
-|--------|-------------|---------------|------------|
-| **3**  | OSDS_CHIEF  | AO V          | All OSDS units below |
+| Role ID | Role Name   | Display Title |     Supervises       |
+|---------|-------------|---------------|----------------------|
+| **3**   | OSDS_CHIEF  | AO V          | All OSDS units below |
 
 **Units under OSDS** (all route to **OSDS Chief / AO V**):
 
-| Unit Code / Name        | Full name (if different)        |
-|-------------------------|----------------------------------|
-| OSDS                    | Office of the SDS Staff         |
-| Personnel               | Personnel                        |
-| Property and Supply     | Property and Supply             |
-| Records                 | Records                          |
-| Cash                    | Cash                             |
-| Procurement             | Procurement                      |
-| General Services        | General Services                 |
-| Legal                   | Legal                            |
-| ICT                     | Information and Communication Technology |
-| Accounting              | Finance (Accounting)            |
-| Budget                  | Finance (Budget)                 |
+| Unit Code / Name        | Full name (if different)                |
+|-------------------------|-----------------------------------------|
+| OSDS                    | Office of the SDS Staff                 |
+| Personnel               | Personnel                               |
+| Property and Supply     | Property and Supply                     |
+| Records                 | Records                                 |
+| Cash                    | Cash                                    |
+| Procurement             | Procurement                             |
+| General Services        | General Services                        |
+| Legal                   | Legal                                   |
+| ICT                     | Information and Communication Technology|
+| Accounting              | Finance (Accounting)                    |
+| Budget                  | Finance (Budget)                        |
 
 ---
 
 ### 2.2 SGOD – School Governance and Operations Division
 
-| Role ID | Role Name   | Display Title | Supervises |
-|--------|-------------|---------------|------------|
-| **5**  | SGOD_CHIEF  | SGOD Chief    | All SGOD units below |
+| Role ID | Role Name   | Display Title |      Supervises      |
+|--------|--------------|---------------|----------------------|
+| **5**  | SGOD_CHIEF   | SGOD Chief    | All SGOD units below |
 
 **Units under SGOD** (all route to **SGOD Chief**):
 
-| Unit Code | Full Name |
-|-----------|-----------|
-| SGOD      | School Governance and Operations Division |
+| Unit Code |                    Full Name                |
+|-----------|---------------------------------------------|
+| SGOD      | School Governance and Operations Division   |
 | SMME      | School Management Monitoring and Evaluation |
-| HRD       | Human Resource Development |
-| SMN       | Social Mobilization and Networking |
-| PR        | Planning and Research |
-| DRRM      | Disaster Risk Reduction and Management |
-| EF        | Education Facilities |
-| SHN_DENTAL| School Health and Nutrition (Dental) |
-| SHN_MEDICAL| School Health and Nutrition (Medical) |
+| HRD       | Human Resource Development                  |
+| SMN       | Social Mobilization and Networking          |
+| PR        | Planning and Research                       | 
+| DRRM      | Disaster Risk Reduction and Management      |
+| EF        | Education Facilities                        |
+| SHN_DENTAL| School Health and Nutrition (Dental)        |
+| SHN_MEDICAL| School Health and Nutrition (Medical)      |
 
 ---
 
 ### 2.3 CID – Curriculum Implementation Division
 
-| Role ID | Role Name   | Display Title | Supervises |
-|--------|-------------|---------------|------------|
-| **4**  | CID_CHIEF   | CID Chief     | All CID units below |
+| Role ID | Role Name    | Display Title |     Supervises      | 
+|---------|--------------|---------------|---------------------|  
+| **4**  -| CID_CHIEF    | CID Chief     | All CID units below |
 
 **Units under CID** (all route to **CID Chief**):
 
-| Unit Code | Full Name |
-|-----------|-----------|
+| Unit Code |              Full Name             |
+|-----------|------------------------------------|
 | CID       | Curriculum Implementation Division |
-| IM        | Instructional Management |
-| LRM       | Learning Resource Management |
-| ALS       | Alternative Learning System |
+| IM        | Instructional Management           |
+| LRM       | Learning Resource Management       |
+| ALS       | Alternative Learning System        |
 | DIS       | District Instructional Supervision |
 
 ---
@@ -100,12 +99,12 @@ The SDO has **three top-level offices** (divisions). Each has one **Office Chief
 
 | Role ID | Constant        | Role Name   | Who they are           | Approves / Recommends |
 |--------|-----------------|-------------|------------------------|------------------------|
-| 1      | ROLE_SUPERADMIN | Superadmin  | SDS (override)         | All (override)        |
-| 2      | ROLE_ASDS       | ASDS        | Assistant SDS          | AT final; LS when requestor is Office Chief |
-| 3      | ROLE_OSDS_CHIEF | OSDS_CHIEF  | AO V – OSDS Office Chief | OSDS units             |
+| 1      | ROLE_SUPERADMIN | Superadmin  | SDS (override)         | All (override)         |
+| 2      | ROLE_ASDS       | ASDS        | Assistant SDS          | AT final; LS when requestor is Office Chief    |
+| 3      | ROLE_OSDS_CHIEF | OSDS_CHIEF  | AO V – OSDS Office Chief | OSDS units           |
 | 4      | ROLE_CID_CHIEF  | CID_CHIEF   | CID Office Chief       | CID units              |
 | 5      | ROLE_SGOD_CHIEF | SGOD_CHIEF  | SGOD Office Chief      | SGOD units             |
-| 6      | ROLE_USER       | User        | Regular employee       | Own requests only     |
+| 6      | ROLE_USER       | User        | Regular employee       | Own requests only      | 
 
 **Office Chief** = any of: **OSDS_CHIEF (3), CID_CHIEF (4), SGOD_CHIEF (5)**.  
 **UNIT_HEAD_ROLES** in code = `[3, 4, 5]`.
