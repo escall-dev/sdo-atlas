@@ -234,11 +234,6 @@ foreach ($routingConfigs as $config) {
         <h2><i class="fas fa-route"></i> Unit Routing Configuration</h2>
         <p class="header-subtitle">Manage unit-to-approver mappings for Authority to Travel approval</p>
     </div>
-    <div class="header-actions">
-        <button class="btn btn-primary" onclick="showCreateModal()">
-            <i class="fas fa-plus"></i> Add Unit Routing
-        </button>
-    </div>
 </div>
 
 <?php if ($message): ?>
@@ -253,11 +248,11 @@ foreach ($routingConfigs as $config) {
 </div>
 <?php endif; ?>
 
-<!-- Filters: Office, Search, Scope, Approving Authority, Travel Scope, Status -->
-<form method="get" class="filter-form-routing">
-    <div class="filter-row">
+<!-- Filters: same design as Users / Authority to Travel / Locator Slips -->
+<div class="filter-bar">
+    <form method="get" class="filter-form">
         <div class="filter-group">
-            <label for="filter_office" class="filter-label">Office</label>
+            <label for="filter_office">Office</label>
             <select name="filter_office" id="filter_office" class="filter-select">
                 <option value="">All Offices</option>
                 <?php foreach (array_keys($roleIdByOffice) as $off): ?>
@@ -265,12 +260,12 @@ foreach ($routingConfigs as $config) {
                 <?php endforeach; ?>
             </select>
         </div>
-        <div class="filter-group filter-search-wrap">
-            <label for="filter_search" class="filter-label">Search</label>
+        <div class="filter-group">
+            <label for="filter_search">Search</label>
             <input type="text" name="filter_search" id="filter_search" class="filter-input" placeholder="Unit name, code..." value="<?php echo htmlspecialchars($filterSearch); ?>">
         </div>
         <div class="filter-group">
-            <label for="filter_scope" class="filter-label">Scope</label>
+            <label for="filter_scope">Scope</label>
             <select name="filter_scope" id="filter_scope" class="filter-select">
                 <option value="">All</option>
                 <option value="authority_to_travel" <?php echo $filterScope === 'authority_to_travel' ? 'selected' : ''; ?>>Authority to Travel</option>
@@ -279,7 +274,7 @@ foreach ($routingConfigs as $config) {
             </select>
         </div>
         <div class="filter-group">
-            <label for="filter_approver" class="filter-label">Approving Authority</label>
+            <label for="filter_approver">Approving Authority</label>
             <select name="filter_approver" id="filter_approver" class="filter-select">
                 <option value="">All</option>
                 <?php foreach ($roles as $role): ?>
@@ -288,7 +283,7 @@ foreach ($routingConfigs as $config) {
             </select>
         </div>
         <div class="filter-group">
-            <label for="filter_travel_scope" class="filter-label">Travel Scope</label>
+            <label for="filter_travel_scope">Travel Scope</label>
             <select name="filter_travel_scope" id="filter_travel_scope" class="filter-select">
                 <option value="">All</option>
                 <option value="all" <?php echo $filterTravelScope === 'all' ? 'selected' : ''; ?>>All Travel</option>
@@ -297,7 +292,7 @@ foreach ($routingConfigs as $config) {
             </select>
         </div>
         <div class="filter-group">
-            <label for="filter_status" class="filter-label">Status</label>
+            <label for="filter_status">Status</label>
             <select name="filter_status" id="filter_status" class="filter-select">
                 <option value="">All</option>
                 <option value="1" <?php echo $filterStatus === '1' ? 'selected' : ''; ?>>Active</option>
@@ -305,11 +300,11 @@ foreach ($routingConfigs as $config) {
             </select>
         </div>
         <div class="filter-actions">
-            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search"></i> Apply</button>
-            <a href="<?php echo htmlspecialchars(navUrl('/unit-routing.php')); ?>" class="btn btn-outline btn-sm">Clear</a>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-filter"></i> Filter</button>
+            <a href="<?php echo htmlspecialchars(navUrl('/unit-routing.php')); ?>" class="btn btn-secondary btn-sm"><i class="fas fa-times"></i> Clear</a>
         </div>
-    </div>
-</form>
+    </form>
+</div>
 
 <!-- Summary Cards by Approver (3 in one row) -->
 <div class="stats-grid-approvers">
@@ -327,88 +322,87 @@ foreach ($routingConfigs as $config) {
     <?php endforeach; ?>
 </div>
 
-<!-- Routing Configuration Table -->
-<div class="card">
-    <div class="card-header">
-        <h3><i class="fas fa-list"></i> All Unit Routing Configurations</h3>
-    </div>
-    <div class="card-body">
-        <?php if (empty($routingConfigs)): ?>
-        <div class="empty-state">
-            <i class="fas fa-route"></i>
-            <p>No unit routing configurations found.</p>
-            <p class="text-muted">Click "Add Unit Routing" to create the first configuration.</p>
-        </div>
-        <?php else: ?>
-        <div class="table-responsive">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th>Order</th>
-                        <th>Office</th>
-                        <th>Unit Name</th>
-                        <th>Display Name</th>
-                        <th>Approving Authority</th>
-                        <th>Travel Scope</th>
-                        <th>Applies To</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($routingConfigs as $config): 
-                        $officeName = $officeByRoleId[$config['approver_role_id']] ?? '-';
-                        $scopeLabels = ['all' => 'All Travel', 'local' => 'Local Only', 'international' => 'International Only'];
-                        $appliesToLabels = ['authority_to_travel' => 'Authority to Travel', 'locator_slip' => 'Locator Slip', 'both' => 'Both'];
-                    ?>
-                    <tr class="<?php echo $config['is_active'] ? '' : 'row-inactive'; ?>">
-                        <td><span class="badge badge-office"><?php echo htmlspecialchars($officeName); ?></span></td>
-                        <td><strong><?php echo htmlspecialchars($config['office_code'] ?? $config['unit_name']); ?></strong></td>
-                        <td><?php echo htmlspecialchars($config['office_name'] ?? $config['unit_display_name']); ?></td>
-                        <td>
-                            <span class="badge badge-primary">
-                                <?php echo htmlspecialchars($config['role_name']); ?>
-                            </span>
-                        </td>
-                        <td><?php echo $scopeLabels[$config['travel_scope']] ?? 'All Travel'; ?></td>
-                        <td><?php echo $appliesToLabels[$config['applies_to']] ?? 'Authority to Travel'; ?></td>
-                        <td>
-                            <?php if ($config['is_active']): ?>
-                            <span class="status-badge status-approved"><i class="fas fa-check-circle"></i> Active</span>
-                            <?php else: ?>
-                            <span class="status-badge status-rejected"><i class="fas fa-times-circle"></i> Inactive</span>
-                            <?php endif; ?>
-                        </td>
-                        <td>
-                            <div class="action-buttons">
-                                <button class="btn btn-sm btn-outline" onclick="editConfig(<?php echo htmlspecialchars(json_encode($config)); ?>)" title="Edit">
-                                    <i class="fas fa-edit"></i>
+<!-- Routing Configuration Table (same design as Users / Authority to Travel / Locator Slips) -->
+<div class="data-card">
+    <div class="table-responsive">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Office</th>
+                    <th>Unit Name</th>
+                    <th>Display Name</th>
+                    <th>Approving Authority</th>
+                    <th>Travel Scope</th>
+                    <th>Applies To</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($routingConfigs)): ?>
+                <tr>
+                    <td colspan="8">
+                        <div class="empty-state">
+                            <span class="empty-icon"><i class="fas fa-route"></i></span>
+                            <h3>No unit routing configurations found</h3>
+                        </div>
+                    </td>
+                </tr>
+                <?php else: ?>
+                <?php foreach ($routingConfigs as $config): 
+                    $officeName = $officeByRoleId[$config['approver_role_id']] ?? '-';
+                    $scopeLabels = ['all' => 'All Travel', 'local' => 'Local Only', 'international' => 'International Only'];
+                    $appliesToLabels = ['authority_to_travel' => 'Authority to Travel', 'locator_slip' => 'Locator Slip', 'both' => 'Both'];
+                ?>
+                <tr class="<?php echo $config['is_active'] ? '' : 'row-inactive'; ?>">
+                    <td><span class="badge-office"><?php echo htmlspecialchars($officeName); ?></span></td>
+                    <td>
+                        <div class="cell-primary"><?php echo htmlspecialchars($config['office_code'] ?? $config['unit_name']); ?></div>
+                    </td>
+                    <td>
+                        <div class="cell-primary"><?php echo htmlspecialchars($config['office_name'] ?? $config['unit_display_name']); ?></div>
+                    </td>
+                    <td>
+                        <span class="unit-badge"><?php echo htmlspecialchars($config['role_name']); ?></span>
+                    </td>
+                    <td><?php echo $scopeLabels[$config['travel_scope']] ?? 'All Travel'; ?></td>
+                    <td><?php echo $appliesToLabels[$config['applies_to']] ?? 'Authority to Travel'; ?></td>
+                    <td>
+                        <?php if ($config['is_active']): ?>
+                        <span class="status-badge status-approved"><i class="fas fa-check-circle"></i> Active</span>
+                        <?php else: ?>
+                        <span class="status-badge status-rejected"><i class="fas fa-times-circle"></i> Inactive</span>
+                        <?php endif; ?>
+                    </td>
+                    <td>
+                        <div class="action-buttons">
+                            <button class="btn btn-sm btn-outline" onclick="editConfig(<?php echo htmlspecialchars(json_encode($config)); ?>)" title="Edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <form method="POST" style="display: inline;">
+                                <input type="hidden" name="action" value="toggle_status">
+                                <input type="hidden" name="id" value="<?php echo $config['id']; ?>">
+                                <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
+                                <input type="hidden" name="filter_office" value="<?php echo htmlspecialchars($filterOffice); ?>">
+                                <input type="hidden" name="filter_search" value="<?php echo htmlspecialchars($filterSearch); ?>">
+                                <input type="hidden" name="filter_scope" value="<?php echo htmlspecialchars($filterScope); ?>">
+                                <input type="hidden" name="filter_approver" value="<?php echo htmlspecialchars($filterApprover); ?>">
+                                <input type="hidden" name="filter_travel_scope" value="<?php echo htmlspecialchars($filterTravelScope); ?>">
+                                <input type="hidden" name="filter_status" value="<?php echo htmlspecialchars($filterStatus); ?>">
+                                <button type="submit" class="btn btn-sm btn-outline" title="<?php echo $config['is_active'] ? 'Deactivate' : 'Activate'; ?>">
+                                    <i class="fas fa-<?php echo $config['is_active'] ? 'toggle-on' : 'toggle-off'; ?>"></i>
                                 </button>
-                                <form method="POST" style="display: inline;">
-                                    <input type="hidden" name="action" value="toggle_status">
-                                    <input type="hidden" name="id" value="<?php echo $config['id']; ?>">
-                                    <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
-                                    <input type="hidden" name="filter_office" value="<?php echo htmlspecialchars($filterOffice); ?>">
-                                    <input type="hidden" name="filter_search" value="<?php echo htmlspecialchars($filterSearch); ?>">
-                                    <input type="hidden" name="filter_scope" value="<?php echo htmlspecialchars($filterScope); ?>">
-                                    <input type="hidden" name="filter_approver" value="<?php echo htmlspecialchars($filterApprover); ?>">
-                                    <input type="hidden" name="filter_travel_scope" value="<?php echo htmlspecialchars($filterTravelScope); ?>">
-                                    <input type="hidden" name="filter_status" value="<?php echo htmlspecialchars($filterStatus); ?>">
-                                    <button type="submit" class="btn btn-sm btn-outline" title="<?php echo $config['is_active'] ? 'Deactivate' : 'Activate'; ?>">
-                                        <i class="fas fa-<?php echo $config['is_active'] ? 'toggle-on' : 'toggle-off'; ?>"></i>
-                                    </button>
-                                </form>
-                                <button class="btn btn-sm btn-danger" onclick="confirmDelete(<?php echo $config['id']; ?>, '<?php echo htmlspecialchars($config['office_name'] ?? $config['unit_display_name'] ?? $config['unit_name']); ?>')" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        </div>
-        <?php endif; ?>
+                            </form>
+                            <button class="btn btn-sm btn-danger" onclick="confirmDelete(<?php echo $config['id']; ?>, '<?php echo htmlspecialchars($config['office_name'] ?? $config['unit_display_name'] ?? $config['unit_name']); ?>')" title="Delete">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -589,51 +583,6 @@ foreach ($routingConfigs as $config) {
     }
 }
 
-.filter-form-routing {
-    margin-bottom: 20px;
-}
-.filter-form-routing .filter-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 12px 16px;
-}
-.filter-form-routing .filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.filter-form-routing .filter-label {
-    font-weight: 600;
-    color: var(--text-primary, #0f172a);
-    font-size: 0.8rem;
-}
-.filter-form-routing .filter-select {
-    min-width: 140px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color, #e2e8f0);
-    font-size: 0.9rem;
-}
-.filter-form-routing .filter-input {
-    min-width: 180px;
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color, #e2e8f0);
-    font-size: 0.9rem;
-}
-.filter-form-routing .filter-search-wrap .filter-input {
-    min-width: 200px;
-}
-.filter-form-routing .filter-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: 4px;
-}
-.filter-form-routing .filter-actions .btn-sm {
-    padding: 8px 14px;
-}
 .badge-office {
     background: var(--bg-tertiary, #e2e8f0);
     color: var(--text-secondary, #475569);
@@ -837,9 +786,9 @@ document.addEventListener('keydown', function(e) {
     }
 });
 
-// Submit filter form on Enter (search/filter without clicking Apply)
+// Submit filter form on Enter (search/filter without clicking Filter)
 (function() {
-    var form = document.querySelector('.filter-form-routing');
+    var form = document.querySelector('.filter-bar .filter-form');
     if (form) {
         form.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
