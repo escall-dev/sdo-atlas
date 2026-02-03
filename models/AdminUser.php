@@ -392,6 +392,13 @@ class AdminUser {
     }
 
     /**
+     * Activate admin user (allow sign-in again)
+     */
+    public function activate($id) {
+        return $this->update($id, ['status' => 'active', 'is_active' => 1]);
+    }
+
+    /**
      * Delete admin user
      */
     public function delete($id) {

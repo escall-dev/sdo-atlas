@@ -138,6 +138,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $auth->logActivity('deactivate_user', 'user', $_POST['id'], 'Deactivated user');
         $message = 'User deactivated.';
     }
+
+    if ($action === 'activate' && !empty($_POST['id'])) {
+        $userModel->activate($_POST['id']);
+        $auth->logActivity('activate_user', 'user', $_POST['id'], 'Activated user');
+        $message = 'User activated.';
+    }
     
     if ($action === 'delete' && !empty($_POST['id'])) {
         $user = $userModel->getById($_POST['id']);
@@ -385,14 +391,26 @@ $pendingCount = $userModel->getPendingRegistrationsCount();
                             </button>
 
                             <?php if ($user['id'] != $auth->getUserId()): ?>
+                            <?php if ($user['status'] === 'active'): ?>
+                            <button type="button"
+                                    class="btn btn-icon"
+                                    title="Deactivate"
+                                    onclick="openDeactivateUserModal(this)"
+                                    data-user-id="<?php echo $user['id']; ?>"
+                                    data-full-name="<?php echo htmlspecialchars($user['full_name'], ENT_QUOTES); ?>"
+                                    data-email="<?php echo htmlspecialchars($user['email'], ENT_QUOTES); ?>">
+                                <i class="fas fa-ban"></i>
+                            </button>
+                            <?php elseif ($user['status'] === 'inactive'): ?>
                             <form method="POST" style="display: inline;">
                                 <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
-                                <input type="hidden" name="action" value="deactivate">
+                                <input type="hidden" name="action" value="activate">
                                 <input type="hidden" name="id" value="<?php echo $user['id']; ?>">
-                                <button type="submit" class="btn btn-icon" title="Deactivate" onclick="return confirm('Deactivate this user?');">
-                                    <i class="fas fa-ban"></i>
+                                <button type="submit" class="btn btn-icon" title="Activate" style="color: var(--success);">
+                                    <i class="fas fa-check-circle"></i>
                                 </button>
                             </form>
+                            <?php endif; ?>
 
                             <button type="button"
                                     class="btn btn-icon"
@@ -617,6 +635,38 @@ $pendingCount = $userModel->getPendingRegistrationsCount();
     </div>
 </div>
 
+<!-- Deactivate User Modal (same style as Delete User Modal) -->
+<div class="modal-overlay" id="deactivateUserModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-ban" style="margin-right: 8px;"></i> Deactivate User</h3>
+            <button class="modal-close" type="button" onclick="closeDeactivateUserModal()">&times;</button>
+        </div>
+        <form method="POST" action="">
+            <div class="modal-body">
+                <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
+                <input type="hidden" name="action" value="deactivate">
+                <input type="hidden" name="id" id="deactivate_user_id" value="">
+
+                <p style="margin-bottom: 10px;">
+                    Are you sure you want to deactivate this user?
+                </p>
+                <div style="padding: 12px 14px; background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-light);">
+                    <div style="font-weight: 700;" id="deactivate_user_name"></div>
+                    <div style="color: var(--text-muted); font-size: 0.9rem;" id="deactivate_user_email"></div>
+                </div>
+                <p style="margin-top: 12px; color: var(--text-muted); font-size: 0.9rem;">
+                    The user will no longer be able to sign in. You can reactivate them later from the user list.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeDeactivateUserModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-ban"></i> Deactivate</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <!-- Delete User Modal -->
 <div class="modal-overlay" id="deleteUserModal">
     <div class="modal">
@@ -759,6 +809,19 @@ function openEditUserModal(btn) {
 }
 function closeEditUserModal() {
     var modal = document.getElementById('editUserModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function openDeactivateUserModal(btn) {
+    document.getElementById('deactivate_user_id').value = btn.getAttribute('data-user-id') || '';
+    document.getElementById('deactivate_user_name').textContent = btn.getAttribute('data-full-name') || '';
+    document.getElementById('deactivate_user_email').textContent = btn.getAttribute('data-email') || '';
+
+    var modal = document.getElementById('deactivateUserModal');
+    if (modal) modal.classList.add('active');
+}
+function closeDeactivateUserModal() {
+    var modal = document.getElementById('deactivateUserModal');
     if (modal) modal.classList.remove('active');
 }
 
