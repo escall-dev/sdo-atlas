@@ -90,11 +90,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="alert alert-error"><i class="fas fa-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?></div>
 <?php endif; ?>
 
-<div class="complaint-detail-grid" style="grid-template-columns: 1fr 350px; align-items: start;">
-    <!-- Left column: Edit Profile only (height matched to right column via JS) -->
-    <div>
+<div class="complaint-detail-grid profile-page-grid" style="grid-template-columns: 1fr 350px; align-items: stretch;">
+    <!-- Left column: Edit Profile (stretches to match right column) -->
+    <div style="display: flex; flex-direction: column; min-height: 0;">
         <!-- Edit Profile -->
-        <div class="detail-card" id="profile-edit-card" style="max-height: var(--profile-sidebar-height, none); overflow: hidden; display: flex; flex-direction: column;">
+        <div class="detail-card" id="profile-edit-card" style="flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column;">
             <div class="detail-card-header" style="flex-shrink: 0;">
                 <h3><i class="fas fa-user-edit"></i> Edit Profile</h3>
             </div>
@@ -195,10 +195,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
-    <!-- Right column: Avatar, then Account Info (height reference for Edit Profile card) -->
-    <div id="profile-sidebar" style="display: flex; flex-direction: column; gap: 20px;">
+    <!-- Right column: Avatar, then Account Info (same height as Edit Profile column) -->
+    <div id="profile-sidebar" style="display: flex; flex-direction: column; gap: 20px; min-height: 0;">
         <!-- Avatar (square card) - SDO theme: blue card, orange avatar icon -->
-        <div class="detail-card profile-avatar-card" style="background: var(--primary-gradient); color: white; aspect-ratio: 1; max-height: 350px;">
+        <div class="detail-card profile-avatar-card" style="flex-shrink: 0; background: var(--primary-gradient); color: white; aspect-ratio: 1; max-height: 350px;">
             <div class="detail-card-body" style="text-align: center; padding: 24px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0;">
                 <div class="user-avatar-placeholder profile-avatar-icon" style="width: 100px; height: 100px; font-size: 1.85rem; margin: 65px auto 12px; flex-shrink: 0; background:rgb(241, 142, 37); color: white;">
                     <?php echo strtoupper(substr($currentUser['full_name'], 0, 1)); ?>
@@ -210,12 +210,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
 
-        <!-- Account Info -->
-        <div class="detail-card">
-            <div class="detail-card-header">
+        <!-- Account Info (flex to fill remaining space, aligned with Edit Profile) -->
+        <div class="detail-card" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+            <div class="detail-card-header" style="flex-shrink: 0;">
                 <h3><i class="fas fa-id-card"></i> Account Info</h3>
             </div>
-            <div class="detail-card-body">
+            <div class="detail-card-body" style="flex: 1; min-height: 0;">
                 <div class="detail-item">
                     <label>Role</label>
                     <span class="role-badge role-<?php echo strtolower(str_replace(' ', '-', $currentUser['role_name'])); ?>">
@@ -247,22 +247,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 </style>
 
-<script>
-(function() {
-    function matchEditProfileHeight() {
-        var sidebar = document.getElementById('profile-sidebar');
-        var editCard = document.getElementById('profile-edit-card');
-        if (sidebar && editCard) {
-            var h = sidebar.offsetHeight;
-            editCard.style.maxHeight = h + 'px';
-        }
-    }
-    document.addEventListener('DOMContentLoaded', function() {
-        matchEditProfileHeight();
-        window.addEventListener('resize', matchEditProfileHeight);
-    });
-})();
-</script>
 
 <?php if ($isSuperAdmin && !empty($unitsByOffice)): ?>
 <script>
