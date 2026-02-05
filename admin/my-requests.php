@@ -1,7 +1,7 @@
 <?php
 /**
- * My Requests Page - Employee view of their own LS and AT requests
- * SDO ATLAS
+ * My Requests Page - View of user's own LS and AT requests
+ * SDO ATLAS - Available for all roles to track their submitted requests
  */
 
 require_once __DIR__ . '/../includes/header.php';

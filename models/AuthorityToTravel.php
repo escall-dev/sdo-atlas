@@ -21,10 +21,10 @@ class AuthorityToTravel {
      * Updated: Uses database-driven unit_routing_config table
      */
     public function determineRouting($requesterRoleId, $requesterOfficeId = null, $requesterOffice = null, $travelScope = null) {
-        // Unit heads skip recommending stage and go directly to ASDS
+        // Unit heads skip recommending stage and go directly to SDS for final approval
         if (in_array($requesterRoleId, UNIT_HEAD_ROLES)) {
             return [
-                'current_approver_role' => 'ASDS',
+                'current_approver_role' => 'SDS',
                 'routing_stage' => 'final',
                 'recommending_authority_name' => null,
                 'recommending_date' => null
@@ -219,7 +219,8 @@ class AuthorityToTravel {
             ROLE_OSDS_CHIEF => 'OSDS_CHIEF',
             ROLE_CID_CHIEF => 'CID_CHIEF',
             ROLE_SGOD_CHIEF => 'SGOD_CHIEF',
-            ROLE_USER => 'USER'
+            ROLE_USER => 'USER',
+            ROLE_SDS => 'SDS'
         ];
         return $roleMap[$roleId] ?? 'USER';
     }
@@ -311,6 +312,15 @@ class AuthorityToTravel {
         // Date validation
         $dateFrom = strtotime($data['date_from']);
         $dateTo = strtotime($data['date_to']);
+        $today = strtotime(date('Y-m-d'));
+
+        // Validate: request date cannot be in the past
+        if ($dateFrom < $today) {
+            $errors[] = 'Date From cannot be in the past. Please select today or a future date.';
+        }
+        if ($dateTo < $today) {
+            $errors[] = 'Date To cannot be in the past. Please select today or a future date.';
+        }
 
         if ($dateTo < $dateFrom) {
             $errors[] = 'Date To cannot be earlier than Date From';
@@ -637,21 +647,22 @@ class AuthorityToTravel {
 
     /**
      * Recommend an AT request (by Unit Head)
-     * Moves request from recommending stage to final stage (ASDS)
+     * Moves request from recommending stage to final stage (SDS)
      */
     public function recommend($id, $recommenderId, $recommenderName, $recommenderRoleId) {
         $recommenderTitle = getRecommendingAuthorityName($recommenderRoleId);
+        $recommenderFullDisplay = $recommenderName . ', ' . $recommenderTitle;
         
         $sql = "UPDATE authority_to_travel SET 
                 status = 'recommended',
                 recommended_by = ?,
                 recommending_authority_name = ?,
                 recommending_date = CURDATE(),
-                current_approver_role = 'ASDS',
+                current_approver_role = 'SDS',
                 routing_stage = 'final'
                 WHERE id = ? AND routing_stage = 'recommending'";
         
-        return $this->db->query($sql, [$recommenderId, $recommenderTitle ?: $recommenderName, $id]);
+        return $this->db->query($sql, [$recommenderId, $recommenderFullDisplay, $id]);
     }
 
     /**
@@ -705,50 +716,28 @@ class AuthorityToTravel {
     }
 
     /**
-     * Approve an AT request (by Unit Head or ASDS)
-     * Unit heads approve requests from regular users
-     * ASDS approves requests from unit heads
+     * Approve an AT request (by SDS/ASDS at final stage)
+     * SDS approves requests after recommending stage is complete
      * Supports OIC approval
      */
     public function approve($id, $approverId, $approverName, $approverRoleId, $isOIC = false) {
         $at = $this->getById($id);
         
-        // Determine authority names based on who is approving
-        if (in_array($approverRoleId, UNIT_HEAD_ROLES)) {
-            // Unit head is approving - use their actual name
-            // Format: "Name (Title)" e.g., "John Doe, CID Chief"
-            $approverTitle = getRecommendingAuthorityName($approverRoleId);
-            $approverFullDisplay = $approverName . ', ' . $approverTitle;
-            
-            $sql = "UPDATE authority_to_travel SET 
-                    status = 'approved',
-                    approved_by = ?,
-                    recommending_authority_name = ?,
-                    recommending_date = CURDATE(),
-                    recommended_by = ?,
-                    approving_authority_name = ?,
-                    approval_date = CURDATE(),
-                    current_approver_role = NULL,
-                    routing_stage = 'completed'
-                    WHERE id = ?";
-            
-            return $this->db->query($sql, [$approverId, $approverFullDisplay, $approverId, $approverFullDisplay, $id]);
-        } else {
-            // ASDS is approving - use their actual name
-            $approverTitle = getApprovingAuthorityName($approverRoleId);
-            $approverFullDisplay = $approverName . ', ' . $approverTitle;
-            
-            $sql = "UPDATE authority_to_travel SET 
-                    status = 'approved',
-                    approved_by = ?,
-                    approving_authority_name = ?,
-                    approval_date = CURDATE(),
-                    current_approver_role = NULL,
-                    routing_stage = 'completed'
-                    WHERE id = ?";
-            
-            return $this->db->query($sql, [$approverId, $approverFullDisplay, $id]);
-        }
+        // SDS/ASDS is approving at final stage - use their actual name
+        $approverTitle = getApprovingAuthorityName($approverRoleId);
+        $approverFullDisplay = $approverName . ', ' . $approverTitle;
+        
+        $sql = "UPDATE authority_to_travel SET 
+                status = 'approved',
+                approved_by = ?,
+                approving_authority_name = ?,
+                approval_date = CURDATE(),
+                approving_time = NOW(),
+                current_approver_role = NULL,
+                routing_stage = 'completed'
+                WHERE id = ?";
+        
+        return $this->db->query($sql, [$approverId, $approverFullDisplay, $id]);
     }
 
     /**
@@ -776,6 +765,7 @@ class AuthorityToTravel {
                 approved_by = ?,
                 approving_authority_name = ?,
                 approval_date = CURDATE(),
+                approving_time = NOW(),
                 current_approver_role = NULL,
                 routing_stage = 'completed'";
         
@@ -846,7 +836,7 @@ class AuthorityToTravel {
 
     /**
      * Get the action type available for user on this AT
-     * Returns: 'approve', 'executive_approve', or null
+     * Returns: 'recommend', 'approve', 'executive_approve', or null
      */
     public function getAvailableAction($at, $userRoleId, $userRoleName) {
         if (!$this->canUserActOn($at, $userRoleId, $userRoleName)) {
@@ -858,14 +848,19 @@ class AuthorityToTravel {
             return 'executive_approve';
         }
 
-        // ASDS can approve at final stage
+        // SDS can approve at final stage (final approver for all travel requests)
+        if ($userRoleId == ROLE_SDS && $at['routing_stage'] === 'final') {
+            return 'approve';
+        }
+
+        // ASDS can approve at final stage (for backward compatibility)
         if ($userRoleId == ROLE_ASDS && $at['routing_stage'] === 'final') {
             return 'approve';
         }
 
-        // Unit heads can approve requests from regular users at recommending stage
+        // Unit heads can RECOMMEND (not approve) requests from regular users at recommending stage
         if (in_array($userRoleId, UNIT_HEAD_ROLES) && $at['routing_stage'] === 'recommending') {
-            return 'approve';
+            return 'recommend';
         }
 
         return null;
@@ -902,7 +897,7 @@ class AuthorityToTravel {
         $stats = $this->db->query($sql, $params)->fetch();
 
         // If user is approver, get their pending queue count
-        if ($roleName && in_array($roleId, [ROLE_ASDS, ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF])) {
+        if ($roleName && in_array($roleId, [ROLE_ASDS, ROLE_SDS, ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF])) {
             $stats['my_queue'] = $this->getPendingCountForRole($roleName, $roleId);
         }
 

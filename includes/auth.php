@@ -249,6 +249,16 @@ class AdminAuth {
     }
 
     /**
+     * Check if current user is SDS (Schools Division Superintendent)
+     */
+    public function isSDS() {
+        if (!$this->user) {
+            return false;
+        }
+        return $this->user['role_id'] == ROLE_SDS;
+    }
+
+    /**
      * Check if current user is a unit head (OSDS Chief, CID Chief, SGOD Chief)
      * Also returns true if user is acting as OIC for a unit head
      */

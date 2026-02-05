@@ -4,6 +4,9 @@
  * SDO ATLAS - Schools Division Office Authority to Travel and Locator Approval System
  */
 
+// Set timezone to Manila, Philippines
+date_default_timezone_set('Asia/Manila');
+
 // Session configuration
 define('ADMIN_SESSION_NAME', 'SDO_ATLAS_ADMIN');
 define('ADMIN_SESSION_LIFETIME', 3600 * 8); // 8 hours
@@ -19,15 +22,19 @@ define('BASE_URL', '/SDO-atlas');
 define('ADMIN_URL', '/SDO-atlas/admin');
 
 // Role IDs - Aligned with SQL admin_roles
-define('ROLE_SUPERADMIN', 1);  // SDS - Executive Override
-define('ROLE_ASDS', 2);        // ASDS - Final Approver
+define('ROLE_SUPERADMIN', 1);  // System Administrator - Executive Override
+define('ROLE_ASDS', 2);        // ASDS - Approves Office Chief locator slips
 define('ROLE_OSDS_CHIEF', 3);  // AO V - Recommending for OSDS units
 define('ROLE_CID_CHIEF', 4);   // CID Chief - Recommending for CID
 define('ROLE_SGOD_CHIEF', 5);  // SGOD Chief - Recommending for SGOD
 define('ROLE_USER', 6);        // Regular Employee
+define('ROLE_SDS', 7);         // SDS - Final approver for all travel requests
 
 // Unit Head Roles Array
 define('UNIT_HEAD_ROLES', [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF]);
+
+// Office Chief Roles Array (Chiefs that route to ASDS for LS, to SDS for AT)
+define('OFFICE_CHIEF_ROLES', [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF]);
 
 // OSDS Units (under AO V supervision)
 // Updated per Routing Directive - applies to local and international travel
@@ -93,7 +100,8 @@ define('RECOMMENDING_AUTHORITY_MAP', [
 // Approving Authority Names
 define('APPROVING_AUTHORITY_MAP', [
     ROLE_ASDS => 'ASDS',
-    ROLE_SUPERADMIN => 'SDS'
+    ROLE_SUPERADMIN => 'Superadmin',
+    ROLE_SDS => 'SDS'
 ]);
 
 // Status configuration for requests
@@ -418,7 +426,7 @@ function getOfficeCodeFromUnitId($unitId) {
  * Helper function to check if user is a final approver (ASDS or Superadmin)
  */
 function isApprover($roleId) {
-    return in_array($roleId, [ROLE_SUPERADMIN, ROLE_ASDS]);
+    return in_array($roleId, [ROLE_SUPERADMIN, ROLE_ASDS, ROLE_SDS]);
 }
 
 /**

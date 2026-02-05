@@ -128,6 +128,7 @@ function initFormValidation() {
         form.addEventListener('submit', function(e) {
             const requiredFields = form.querySelectorAll('[required]');
             let isValid = true;
+            let errorMessages = [];
             
             requiredFields.forEach(function(field) {
                 if (!field.value.trim()) {
@@ -141,9 +142,32 @@ function initFormValidation() {
                 }
             });
             
+            // Date validation: prevent past dates for request forms
+            const dateFields = form.querySelectorAll('input[type="date"], input[type="datetime-local"]');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            dateFields.forEach(function(field) {
+                if (field.value && field.name && (field.name.includes('date_from') || field.name.includes('date_to') || field.name.includes('date_time'))) {
+                    const fieldDate = new Date(field.value);
+                    fieldDate.setHours(0, 0, 0, 0);
+                    
+                    if (fieldDate < today) {
+                        isValid = false;
+                        field.classList.add('error');
+                        errorMessages.push('Request date cannot be in the past. Please select today or a future date.');
+                        
+                        field.addEventListener('input', function() {
+                            field.classList.remove('error');
+                        }, { once: true });
+                    }
+                }
+            });
+            
             if (!isValid) {
                 e.preventDefault();
-                showNotification('Please fill in all required fields.', 'error');
+                const message = errorMessages.length > 0 ? errorMessages[0] : 'Please fill in all required fields.';
+                showNotification(message, 'error');
             }
         });
     });

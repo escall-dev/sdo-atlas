@@ -61,6 +61,8 @@ class DocxGenerator {
             'requesting_employee_name' => $data['requesting_employee_name'] ?? $data['employee_name'] ?? '',
             'request_date' => $this->formatDate($data['request_date'] ?? ''),
             'approver_name' => $data['approver_name'] ?? '',
+            // Show only the time portion so the approval date does not repeat
+            'approving_time' => $this->formatTime($data['approving_time'] ?? ''),
             'approver_position' => $data['approver_position'] ?? '',
             'approval_date' => $this->formatDate($data['approval_date'] ?? '')
         ];
@@ -142,23 +144,25 @@ class DocxGenerator {
 
         // Set all placeholders - ensure all values are strings
         $placeholders = [
-            'at_tracking_no' => $getValue('at_tracking_no'),
-            'employee_name' => $getValue('employee_name'),
-            'employee_position' => $getValue('employee_position'),
-            'permanent_station' => $getValue('permanent_station'),
-            'purpose_of_travel' => $getValue('purpose_of_travel'),
-            'host_of_activity' => $getValue('host_of_activity'),
-            'date_from' => $this->formatDate($getValue('date_from')),
-            'date_to' => $this->formatDate($getValue('date_to')),
-            'destination' => $getValue('destination'),
-            'fund_source' => $getValue('fund_source'),
-            'inclusive_dates' => $getValue('inclusive_dates') ?: $this->formatDateRange($getValue('date_from'), $getValue('date_to')),
-            'requesting_employee_name' => $getValue('requesting_employee_name') ?: $getValue('employee_name'),
-            'request_date' => $this->formatDate($getValue('request_date')),
-            'recommending_authority_name' => $getValue('recommending_authority_name'),
-            'recommending_date' => $this->formatDate($getValue('recommending_date')),
-            'approving_authority_name' => $getValue('approving_authority_name'),
-            'approval_date' => $this->formatDate($getValue('approval_date'))
+            'at_tracking_no' => $getValue('at_tracking_no', ''),
+            'employee_name' => $getValue('employee_name', ''),
+            'employee_position' => $getValue('employee_position', ''),
+            'permanent_station' => $getValue('permanent_station', ''),
+            'purpose_of_travel' => $getValue('purpose_of_travel', ''),
+            'host_of_activity' => $getValue('host_of_activity', ''),
+            'date_from' => $this->formatDate($getValue('date_from', '')),
+            'date_to' => $this->formatDate($getValue('date_to', '')),
+            'destination' => $getValue('destination', ''),
+            'fund_source' => $getValue('fund_source', ''),
+            'inclusive_dates' => $getValue('inclusive_dates', '') ?: $this->formatDateRange($getValue('date_from', ''), $getValue('date_to', '')),
+            'requesting_employee_name' => $getValue('requesting_employee_name', '') ?: $getValue('employee_name', ''),
+            'request_date' => $this->formatDate($getValue('request_date', '')),
+            'recommending_authority_name' => $getValue('recommending_authority_name', ''),
+            'recommending_date' => $this->formatDate($getValue('recommending_date', '')),
+            'approving_authority_name' => $getValue('approving_authority_name', ''),
+            'approval_date' => $this->formatDate($getValue('approval_date', '')),
+            // Show only the time portion so the approval date does not repeat
+            'approving_time' => $this->formatTime($getValue('approving_time', ''))
         ];
 
         // Replace all placeholders - use setValue for each
@@ -198,6 +202,17 @@ class DocxGenerator {
         }
         $timestamp = strtotime($datetime);
         return $timestamp ? date('F j, Y - g:i A', $timestamp) : $datetime;
+    }
+
+    /**
+     * Format time only for display
+     */
+    private function formatTime($datetime) {
+        if (empty($datetime)) {
+            return '';
+        }
+        $timestamp = strtotime($datetime);
+        return $timestamp ? date('g:i A', $timestamp) : $datetime;
     }
 
     /**

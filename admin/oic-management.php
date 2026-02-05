@@ -4,16 +4,24 @@
  * SDO ATLAS - Unit heads can assign and manage OIC delegations
  */
 
-require_once __DIR__ . '/../includes/header.php';
-require_once __DIR__ . '/../models/OICDelegation.php';
-require_once __DIR__ . '/../models/AdminUser.php';
+// Check authentication BEFORE header.php outputs anything
+require_once __DIR__ . '/../includes/auth.php';
+$authCheck = auth();
+$authCheck->requireLogin();
 
-// Only unit heads can access this page
-if (!$auth->isUnitHead()) {
+$currentUserCheck = $authCheck->getUser();
+
+// Only ACTUAL unit heads can access this page (not OICs acting as unit heads)
+// OICs should not be able to assign other OICs - this is reserved for office chiefs only
+if ($authCheck->isActingAsOIC() || !isUnitHead($currentUserCheck['role_id'])) {
     header('HTTP/1.1 403 Forbidden');
     include __DIR__ . '/403.php';
     exit;
 }
+
+require_once __DIR__ . '/../includes/header.php';
+require_once __DIR__ . '/../models/OICDelegation.php';
+require_once __DIR__ . '/../models/AdminUser.php';
 
 $oicModel = new OICDelegation();
 $userModel = new AdminUser();

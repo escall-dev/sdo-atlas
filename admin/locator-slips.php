@@ -46,16 +46,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'user_id' => $auth->getUserId()
             ];
             
-            // Get requester info for routing (office_id preferred so dentist/SHN etc. route to SGOD Chief)
-            $requesterRoleId = $currentUser['role_id'];
-            $requesterOffice = $currentUser['employee_office'] ?? $_POST['employee_office'];
-            $requesterOfficeId = !empty($currentUser['office_id']) ? (int) $currentUser['office_id'] : null;
-            
-            $id = $lsModel->create($data, $requesterRoleId, $requesterOffice, $requesterOfficeId);
-            $auth->logActivity('create', 'locator_slip', $id, 'Created Locator Slip: ' . $controlNo);
-            
-            $message = 'Locator Slip filed successfully! Tracking Number: ' . $controlNo;
-            $action = ''; // Close modal
+            // Validate submission (date cannot be in the past)
+            $validation = $lsModel->validateSubmission($data);
+            if (!$validation['valid']) {
+                $error = implode(' ', $validation['errors']);
+            } else {
+                // Get requester info for routing (office_id preferred so dentist/SHN etc. route to SGOD Chief)
+                $requesterRoleId = $currentUser['role_id'];
+                $requesterOffice = $currentUser['employee_office'] ?? $_POST['employee_office'];
+                $requesterOfficeId = !empty($currentUser['office_id']) ? (int) $currentUser['office_id'] : null;
+                
+                $id = $lsModel->create($data, $requesterRoleId, $requesterOffice, $requesterOfficeId);
+                $auth->logActivity('create', 'locator_slip', $id, 'Created Locator Slip: ' . $controlNo);
+                
+                $message = 'Locator Slip filed successfully! Tracking Number: ' . $controlNo;
+                $action = ''; // Close modal
+            }
         } catch (Exception $e) {
             $error = 'Failed to create Locator Slip: ' . $e->getMessage();
         }
@@ -325,6 +331,7 @@ if (!$editData || !$lsModel->canUserEdit($editData, $auth->getUserId())) {
                 <div class="form-group">
                     <label class="form-label">Date & Time <span class="required">*</span></label>
                     <input type="datetime-local" name="date_time" class="form-control" required
+                           min="<?php echo date('Y-m-d\TH:i'); ?>"
                            value="<?php echo date('Y-m-d\TH:i', strtotime($editData['date_time'])); ?>">
                 </div>
             </div>
@@ -432,6 +439,10 @@ if (!$editData || !$lsModel->canUserEdit($editData, $auth->getUserId())) {
                     <div class="detail-item">
                         <label>Approval Date</label>
                         <span><?php echo $viewData['approval_date'] ? date('F j, Y', strtotime($viewData['approval_date'])) : '-'; ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Approval Time</label>
+                        <span><?php echo !empty($viewData['approving_time']) ? date('g:i A', strtotime($viewData['approving_time'])) : '-'; ?></span>
                     </div>
                     <?php else: ?>
                     <div class="detail-item">
@@ -855,6 +866,7 @@ function closeRejectModal() {
                     <div class="form-group">
                         <label class="form-label">Date & Time <span class="required">*</span></label>
                         <input type="datetime-local" name="date_time" class="form-control" required
+                               min="<?php echo date('Y-m-d\TH:i'); ?>"
                                value="<?php echo date('Y-m-d\TH:i'); ?>">
                     </div>
                 </div>
@@ -880,8 +892,64 @@ function closeRejectModal() {
 </div>
 
 <script>
+// Manila timezone offset (UTC+8)
+const MANILA_OFFSET = 8 * 60; // minutes
+
+// Get current time in Manila timezone
+function getManilaTime() {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    return new Date(utc + (MANILA_OFFSET * 60000));
+}
+
+// Format date for datetime-local input (YYYY-MM-DDTHH:MM)
+function formatDatetimeLocal(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+// Update datetime input min value and validate
+function updateDateTimeInputs() {
+    const manilaTime = getManilaTime();
+    const minDateTime = formatDatetimeLocal(manilaTime);
+    
+    // Update all datetime-local inputs
+    document.querySelectorAll('input[type="datetime-local"][name="date_time"]').forEach(input => {
+        input.setAttribute('min', minDateTime);
+        
+        // If current value is in the past, update it
+        if (input.value && input.value < minDateTime) {
+            input.value = minDateTime;
+        }
+    });
+}
+
+// Validate datetime before form submission
+function validateDateTime(form) {
+    const dateTimeInput = form.querySelector('input[name="date_time"]');
+    if (!dateTimeInput) return true;
+    
+    const manilaTime = getManilaTime();
+    const minDateTime = formatDatetimeLocal(manilaTime);
+    const selectedDateTime = dateTimeInput.value;
+    
+    if (selectedDateTime < minDateTime) {
+        alert('The selected date and time is in the past. Please select a current or future time.');
+        dateTimeInput.value = minDateTime;
+        dateTimeInput.focus();
+        return false;
+    }
+    return true;
+}
+
 function openNewModal() {
     document.getElementById('newModal').classList.add('active');
+    // Update min datetime when modal opens
+    updateDateTimeInputs();
 }
 function closeNewModal() {
     document.getElementById('newModal').classList.remove('active');
@@ -890,6 +958,24 @@ function closeNewModal() {
     url.searchParams.delete('action');
     window.history.replaceState({}, '', url);
 }
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Set initial min values
+    updateDateTimeInputs();
+    
+    // Update min values every minute to prevent past time selection
+    setInterval(updateDateTimeInputs, 60000);
+    
+    // Add form validation
+    document.querySelectorAll('form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            if (!validateDateTime(this)) {
+                e.preventDefault();
+            }
+        });
+    });
+});
 
 // Auto-open modal if action=new
 <?php if ($action === 'new'): ?>

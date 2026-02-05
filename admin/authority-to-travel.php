@@ -79,8 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    // Handle approve action (by Unit Heads or ASDS)
-    if ($postAction === 'approve' && ($auth->isASDS() || $auth->isUnitHead())) {
+    // Handle approve action (by ASDS or SDS at final stage)
+    if ($postAction === 'approve' && ($auth->isASDS() || $auth->isSDS())) {
         $id = $_POST['id'];
         $at = $atModel->getById($id);
         
@@ -99,6 +99,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = 'Authority to Travel approved successfully!';
             } else {
                 $error = 'You do not have permission to approve this request.';
+            }
+        }
+    }
+    
+    // Handle recommend action (by Unit Heads - Office Chiefs)
+    if ($postAction === 'recommend' && $auth->isUnitHead()) {
+        $id = $_POST['id'];
+        $at = $atModel->getById($id);
+        
+        if ($at && $at['status'] === 'pending') {
+            $availableAction = $atModel->getAvailableAction($at, $currentRoleId, $currentRoleName);
+            
+            if ($availableAction === 'recommend') {
+                // Check if this is an OIC recommendation
+                $isOIC = $auth->isActingAsOIC();
+                
+                $atModel->recommend($id, $auth->getUserId(), $currentUser['full_name'], $currentRoleId);
+                
+                // Log with OIC prefix if applicable
+                $actionType = $isOIC ? 'OIC-RECOMMEND' : 'RECOMMEND_AT';
+                $auth->logActivity($actionType, 'AT', $id, 'Recommended AT: ' . $at['at_tracking_no']);
+                $message = 'Authority to Travel recommended for approval. It will now be routed to SDS for final approval.';
+            } else {
+                $error = 'You do not have permission to recommend this request.';
             }
         }
     }
@@ -209,8 +233,8 @@ if ($auth->isEmployee()) {
     if (empty($_GET['show_all'])) {
         $filters['current_approver_role'] = $currentRoleName;
     }
-} elseif ($auth->isASDS()) {
-    // ASDS sees requests in final stage (their queue) by default
+} elseif ($auth->isASDS() || $auth->isSDS()) {
+    // ASDS/SDS sees requests in final stage (their queue) by default
     if (empty($_GET['show_all'])) {
         $filters['current_approver_role'] = $currentRoleName;
     }
@@ -262,7 +286,7 @@ $totalPages = ceil($totalRequests / $perPage);
 require_once __DIR__ . '/../models/AdminUser.php';
 $userModel = new AdminUser();
 $allApprovers = [];
-if ($auth->isSuperAdmin() || $auth->isASDS()) {
+if ($auth->isSuperAdmin() || $auth->isASDS() || $auth->isSDS()) {
     // Get all unit heads
     $unitHeads = $userModel->getUnitHeads(true);
     foreach ($unitHeads as $uh) {
@@ -403,6 +427,10 @@ if ($type === 'national') {
                         <label>Approval Date</label>
                         <span><?php echo $viewData['approval_date'] ? date('F j, Y', strtotime($viewData['approval_date'])) : '-'; ?></span>
                     </div>
+                    <div class="detail-item">
+                        <label>Approval Time</label>
+                        <span><?php echo $viewData['approving_time'] ? date('g:i A', strtotime($viewData['approving_time'])) : '-'; ?></span>
+                    </div>
                     <?php else: ?>
                     <div class="detail-item">
                         <label>Rejection Reason</label>
@@ -453,7 +481,11 @@ if ($type === 'national') {
                 <h3><i class="fas fa-tasks"></i> Actions</h3>
             </div>
             <div class="detail-card-body">
-                <?php if ($availableAction === 'approve'): ?>
+                <?php if ($availableAction === 'recommend'): ?>
+                <button type="button" class="btn btn-primary btn-block" style="margin-bottom: 10px;" onclick="openRecommendModal(<?php echo $viewData['id']; ?>)">
+                    <i class="fas fa-thumbs-up"></i> Recommend Approval
+                </button>
+                <?php elseif ($availableAction === 'approve'): ?>
                 <button type="button" class="btn btn-success btn-block" style="margin-bottom: 10px;" onclick="openApproveModal(<?php echo $viewData['id']; ?>)">
                     <i class="fas fa-check"></i> Approve
                 </button>
@@ -600,6 +632,38 @@ if ($type === 'national') {
     </div>
 </div>
 
+<!-- Recommend Modal (for Unit Heads) -->
+<div class="modal-overlay" id="recommendModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-thumbs-up" style="margin-right: 8px; color: var(--primary);"></i> Recommend Authority to Travel</h3>
+            <button class="modal-close" type="button" onclick="closeRecommendModal()">&times;</button>
+        </div>
+        <form method="POST" action="">
+            <div class="modal-body">
+                <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
+                <input type="hidden" name="action" value="recommend">
+                <input type="hidden" name="id" id="recommendId" value="">
+
+                <p style="margin-bottom: 10px;">
+                    Are you sure you want to recommend this Authority to Travel for approval?
+                </p>
+                <p style="margin-bottom: 10px; color: var(--text-muted);">
+                    <i class="fas fa-info-circle"></i> After your recommendation, this request will be routed to the SDS for final approval.
+                </p>
+                <div style="padding: 12px 14px; background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-light);">
+                    <div style="font-weight: 700;" id="recommendTrackingNo"></div>
+                    <div style="color: var(--text-muted); font-size: 0.9rem;" id="recommendEmployeeName"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeRecommendModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary"><i class="fas fa-thumbs-up"></i> Yes, recommend</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 function openApproveModal(id) {
     document.getElementById('approveId').value = id;
@@ -616,6 +680,23 @@ function openApproveModal(id) {
 }
 function closeApproveModal() {
     document.getElementById('approveModal').classList.remove('active');
+}
+
+function openRecommendModal(id) {
+    document.getElementById('recommendId').value = id;
+    // Pull details from current page if available
+    var trackingNoEl = document.querySelector('.ref-number');
+    if (trackingNoEl) document.getElementById('recommendTrackingNo').textContent = trackingNoEl.textContent.trim();
+    // Find employee name specifically
+    var nameLabel = Array.from(document.querySelectorAll('.detail-item label')).find(l => l.textContent.trim() === 'Employee Name');
+    if (nameLabel && nameLabel.parentElement) {
+        var span = nameLabel.parentElement.querySelector('span');
+        if (span) document.getElementById('recommendEmployeeName').textContent = span.textContent.trim();
+    }
+    document.getElementById('recommendModal').classList.add('active');
+}
+function closeRecommendModal() {
+    document.getElementById('recommendModal').classList.remove('active');
 }
 
 function showRejectModal(id) {
@@ -714,11 +795,13 @@ if (!$editData || !$atModel->canUserEdit($editData, $auth->getUserId())) {
                 <div class="form-group">
                     <label class="form-label">Date From <span class="required">*</span></label>
                     <input type="date" name="date_from" class="form-control" required
+                           min="<?php echo date('Y-m-d'); ?>"
                            value="<?php echo date('Y-m-d', strtotime($editData['date_from'])); ?>">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Date To <span class="required">*</span></label>
                     <input type="date" name="date_to" class="form-control" required
+                           min="<?php echo date('Y-m-d'); ?>"
                            value="<?php echo date('Y-m-d', strtotime($editData['date_to'])); ?>">
                 </div>
             </div>
@@ -1101,11 +1184,13 @@ function toggleTravelTypeEdit() {
                     <div class="form-group">
                         <label class="form-label">Date From <span class="required">*</span></label>
                         <input type="date" name="date_from" class="form-control" required
+                               min="<?php echo date('Y-m-d'); ?>"
                                value="<?php echo date('Y-m-d'); ?>">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Date To <span class="required">*</span></label>
                         <input type="date" name="date_to" class="form-control" required
+                               min="<?php echo date('Y-m-d'); ?>"
                                value="<?php echo date('Y-m-d'); ?>">
                     </div>
                 </div>

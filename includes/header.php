@@ -143,10 +143,16 @@ function navUrl($path) {
                     </span>
                     <span class="nav-text">Authority to Travel</span>
                 </a>
+                
+                <!-- My Requests for Chiefs, ASDS, SDS, and Superadmin -->
+                <a href="<?php echo navUrl('/my-requests.php'); ?>" class="nav-item <?php echo $currentPage === 'my-requests' ? 'active' : ''; ?>" data-tooltip="My Requests">
+                    <span class="nav-icon"><i class="fas fa-folder-open"></i></span>
+                    <span class="nav-text">My Requests</span>
+                </a>
                 <?php endif; ?>
                 
-                <?php if ($auth->isUnitHead()): ?>
-                <!-- Unit Head only navigation -->
+                <?php if (!$auth->isActingAsOIC() && isUnitHead($currentUser['role_id'])): ?>
+                <!-- Unit Head only navigation (not for OICs - chiefs only) -->
                 <a href="<?php echo navUrl('/oic-management.php'); ?>" class="nav-item <?php echo $currentPage === 'oic-management' ? 'active' : ''; ?>" data-tooltip="OIC Management">
                     <span class="nav-icon"><i class="fas fa-user-shield"></i></span>
                     <span class="nav-text">OIC Management</span>

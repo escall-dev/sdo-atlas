@@ -27,12 +27,13 @@ CREATE TABLE admin_roles (
 );
 
 INSERT INTO admin_roles (id, role_name, description, permissions) VALUES
-(1, 'SUPERADMIN', 'Schools Division Superintendent - Full system access and executive override', '{"all": true}'),
-(2, 'ASDS', 'Assistant Schools Division Superintendent - Final approver for all travel requests', '{"requests.view": true, "requests.approve": true, "requests.final_approve": true, "logs.view": true, "analytics.view": true}'),
+(1, 'SUPERADMIN', 'System Administrator - Full system access and executive override', '{"all": true}'),
+(2, 'ASDS', 'Assistant Schools Division Superintendent - Approves Office Chief locator slips', '{"requests.view": true, "requests.approve": true, "logs.view": true, "analytics.view": true}'),
 (3, 'OSDS_CHIEF', 'Administrative Officer V - Recommending authority for OSDS units (Supply, Records, HR, Admin)', '{"requests.view": true, "requests.recommend": true, "requests.own": true, "logs.view": true}'),
 (4, 'CID_CHIEF', 'Chief, Curriculum Implementation Division - Recommending authority for CID', '{"requests.view": true, "requests.recommend": true, "requests.own": true, "logs.view": true}'),
 (5, 'SGOD_CHIEF', 'Chief, School Governance and Operations Division - Recommending authority for SGOD', '{"requests.view": true, "requests.recommend": true, "requests.own": true, "logs.view": true}'),
-(6, 'USER', 'SDO Employee - Can file and track own requests', '{"requests.file": true, "requests.own": true}');
+(6, 'USER', 'SDO Employee - Can file and track own requests', '{"requests.file": true, "requests.own": true}'),
+(7, 'SDS', 'Schools Division Superintendent - Final approver for all travel requests', '{"requests.view": true, "requests.final_approve": true, "logs.view": true, "analytics.view": true}');
 
 -- =========================
 -- USERS
@@ -60,6 +61,11 @@ CREATE TABLE admin_users (
 -- Default Superadmin Account (password: sdoescall)
 INSERT INTO admin_users (role_id, full_name, employee_position, employee_office, email, password_hash, status, is_active) VALUES
 (1, 'System Administrator', 'Superadmin', 'SDO San Pedro City', 'joerenz.dev@gmail.com', '$2y$10$i9CNq.Jmk./rwMFDdjmyLeCfp6xaYmHyczadTu5Ppo8p6ZJrwxQDm', 'active', 1);
+
+-- OSDS Chief Account - Paul Jeremy I. Aguja (Locator Slip Approver for OSDS units)
+-- Password: sdoescall
+INSERT INTO admin_users (role_id, full_name, employee_position, employee_office, email, password_hash, status, is_active) VALUES
+(3, 'Paul Jeremy I. Aguja', 'Administrative Officer V', 'OSDS', 'aov@deped.gov.ph', '$2y$10$i9CNq.Jmk./rwMFDdjmyLeCfp6xaYmHyczadTu5Ppo8p6ZJrwxQDm', 'active', 1);
 
 -- =========================
 -- SESSION TOKENS (Multi-Account Support)
@@ -100,6 +106,7 @@ CREATE TABLE locator_slips (
   approver_name VARCHAR(150),
   approver_position VARCHAR(100),
   approval_date DATE,
+  approving_time DATETIME DEFAULT NULL,
   rejection_reason TEXT,
 
   -- SYSTEM

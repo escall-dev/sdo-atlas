@@ -87,10 +87,9 @@ class LocatorSlip {
     }
 
     /**
-     * Create a new Locator Slip request with unit-based routing
-     * - If requestor is an Office Chief: route to ASDS for approval (ASDS is sole approver).
-     * - If requestor belongs to a unit under an office: route to their Office Chief only (Office Chief is sole approver; not forwarded to ASDS).
-     * @param int|null $requesterOfficeId When set (from admin_users.office_id), routing uses sdo_offices.approver_role_id for accuracy (e.g. dentist → SGOD Chief).
+     * Create a new Locator Slip request with routing
+     * - If requestor is an Office Chief (SGOD, CID, OSDS Chief): route to ASDS for approval.
+     * - All other employees: route to OSDS Chief (AO V) as the sole approver.
      */
     public function create($data, $requesterRoleId = null, $requesterOffice = null, $requesterOfficeId = null) {
         $approverRoleId = null;
@@ -99,34 +98,38 @@ class LocatorSlip {
         require_once __DIR__ . '/AdminUser.php';
         $userModel = new AdminUser();
 
-        // Office Chief as requestor: route to ASDS only
+        // Office Chief as requestor: route to ASDS only (never self or other chiefs)
         if ($requesterRoleId && in_array($requesterRoleId, UNIT_HEAD_ROLES)) {
             $approverRoleId = ROLE_ASDS;
             $asdsUsers = $userModel->getByRole(ROLE_ASDS, true);
-            if (!empty($asdsUsers)) {
-                $assignedApproverUserId = $asdsUsers[0]['id'];
-            }
-        }
-        // Requestor belongs to unit under office: resolve chief by office_id first (most reliable), then by office name
-        elseif ($requesterOfficeId && function_exists('getApproverRoleByOfficeId')) {
-            $approverRoleId = getApproverRoleByOfficeId((int) $requesterOfficeId);
-            $unitHeads = $userModel->getByRole($approverRoleId, true);
-            if (!empty($unitHeads)) {
-                $unitHeadUserId = $unitHeads[0]['id'];
-                require_once __DIR__ . '/OICDelegation.php';
-                $oicModel = new OICDelegation();
-                $assignedApproverUserId = $oicModel->getEffectiveApproverUserId($approverRoleId, $unitHeadUserId);
-            }
-        }
-        elseif ($requesterOffice) {
-            $approverRoleId = $this->getApproverRoleForOffice($requesterOffice);
-            $unitHeads = $userModel->getByRole($approverRoleId, true);
 
+            if (!empty($asdsUsers)) {
+                // Prefer an ASDS user that is not the requester (chief) to avoid self-assignment
+                $primaryAsdsUserId = null;
+                foreach ($asdsUsers as $asdsUser) {
+                    if ((int)$asdsUser['id'] !== (int)$data['user_id']) {
+                        $primaryAsdsUserId = $asdsUser['id'];
+                        break;
+                    }
+                }
+
+                // Fallback to the first ASDS if requester somehow matches (e.g., acting role)
+                if ($primaryAsdsUserId === null) {
+                    $primaryAsdsUserId = $asdsUsers[0]['id'];
+                }
+
+                $assignedApproverUserId = $this->getEffectiveApproverUserId(ROLE_ASDS, $primaryAsdsUserId);
+            }
+        }
+        // All other employees: route to OSDS Chief (AO V) as sole approver
+        else {
+            $approverRoleId = ROLE_OSDS_CHIEF;
+            $unitHeads = $userModel->getByRole(ROLE_OSDS_CHIEF, true);
             if (!empty($unitHeads)) {
                 $unitHeadUserId = $unitHeads[0]['id'];
                 require_once __DIR__ . '/OICDelegation.php';
                 $oicModel = new OICDelegation();
-                $assignedApproverUserId = $oicModel->getEffectiveApproverUserId($approverRoleId, $unitHeadUserId);
+                $assignedApproverUserId = $oicModel->getEffectiveApproverUserId(ROLE_OSDS_CHIEF, $unitHeadUserId);
             }
         }
         
@@ -214,16 +217,25 @@ class LocatorSlip {
                 WHERE 1=1";
         $params = [];
 
-        // Visibility filtering
-        if ($viewerRoleId == ROLE_USER && $viewerUserId) {
+        // Visibility filtering - skip role-based filtering if user_id filter is explicitly provided (e.g., in My Requests page)
+        if (!empty($filters['user_id'])) {
+            // Explicitly filtering by user_id - show only that user's requests regardless of role
+            $sql .= " AND ls.user_id = ?";
+            $params[] = $filters['user_id'];
+        } elseif ($viewerRoleId == ROLE_USER && $viewerUserId) {
             // Regular employees see only their own requests
             $sql .= " AND ls.user_id = ?";
             $params[] = $viewerUserId;
-        } elseif ($viewerRoleId && in_array($viewerRoleId, UNIT_HEAD_ROLES)) {
-            // Unit heads (Office Chiefs) see only requests assigned to them (or their OIC)
+        } elseif ($viewerRoleId == ROLE_OSDS_CHIEF) {
+            // OSDS Chief sees only requests assigned to them for approval (regular employee requests)
+            // Their own submissions are routed to ASDS and appear only in My Requests page
             $sql .= " AND (ls.assigned_approver_user_id = ? OR ls.assigned_approver_role_id = ?)";
             $params[] = $viewerUserId;
-            $params[] = $viewerRoleId;
+            $params[] = ROLE_OSDS_CHIEF;
+        } elseif ($viewerRoleId && in_array($viewerRoleId, [ROLE_CID_CHIEF, ROLE_SGOD_CHIEF])) {
+            // CID/SGOD Chiefs: their submissions route to ASDS, so they see nothing in main Locator Slips page
+            // Their own requests appear only in My Requests page
+            $sql .= " AND 1=0";  // No records shown
         } elseif ($viewerRoleId == ROLE_ASDS) {
             // ASDS sees only Locator Slips assigned to ASDS (i.e. requests filed by Office Chiefs)
             $sql .= " AND ls.assigned_approver_role_id = ?";
@@ -237,10 +249,7 @@ class LocatorSlip {
             $params[] = $viewerUserId;
         }
 
-        if (!empty($filters['user_id'])) {
-            $sql .= " AND ls.user_id = ?";
-            $params[] = $filters['user_id'];
-        }
+        // Additional filters (user_id already handled above in visibility filtering)
 
         if (!empty($filters['status'])) {
             $sql .= " AND ls.status = ?";
@@ -309,10 +318,16 @@ class LocatorSlip {
         if ($viewerRoleId == ROLE_USER && $viewerUserId) {
             $sql .= " AND ls.user_id = ?";
             $params[] = $viewerUserId;
-        } elseif ($viewerRoleId && in_array($viewerRoleId, UNIT_HEAD_ROLES)) {
-            $sql .= " AND (ls.assigned_approver_user_id = ? OR ls.assigned_approver_role_id = ?)";
+        } elseif ($viewerRoleId == ROLE_OSDS_CHIEF) {
+            // OSDS Chief sees requests assigned to them (all non-chief requests) plus their own submissions
+            $sql .= " AND (ls.assigned_approver_user_id = ? OR ls.assigned_approver_role_id = ? OR ls.user_id = ?)";
             $params[] = $viewerUserId;
-            $params[] = $viewerRoleId;
+            $params[] = ROLE_OSDS_CHIEF;
+            $params[] = $viewerUserId;
+        } elseif ($viewerRoleId && in_array($viewerRoleId, [ROLE_CID_CHIEF, ROLE_SGOD_CHIEF])) {
+            // CID/SGOD Chiefs see only their own submissions (no one is assigned to them anymore)
+            $sql .= " AND ls.user_id = ?";
+            $params[] = $viewerUserId;
         } elseif ($viewerRoleId == ROLE_ASDS) {
             $sql .= " AND ls.assigned_approver_role_id = ?";
             $params[] = ROLE_ASDS;
@@ -381,6 +396,7 @@ class LocatorSlip {
     /**
      * Approve a Locator Slip
      * Supports OIC approval logging
+     * Sets approving_time to current timestamp on final approval
      */
     public function approve($id, $approverId, $approverName, $approverPosition, $isOIC = false) {
         $sql = "UPDATE locator_slips SET 
@@ -388,10 +404,51 @@ class LocatorSlip {
                 approved_by = ?,
                 approver_name = ?,
                 approver_position = ?,
-                approval_date = CURDATE()
+                approval_date = CURDATE(),
+                approving_time = NOW()
                 WHERE id = ?";
         
         return $this->db->query($sql, [$approverId, $approverName, $approverPosition, $id]);
+    }
+
+    /**
+     * Validate Locator Slip request before submission
+     * Returns: ['valid' => bool, 'errors' => array]
+     */
+    public function validateSubmission($data) {
+        $errors = [];
+
+        // Ensure Manila timezone is used
+        date_default_timezone_set('Asia/Manila');
+        
+        // Date/Time validation: cannot be in the past (including time check)
+        $requestDateTime = strtotime($data['date_time']);
+        $now = time();
+        
+        // Check if the full datetime (date + time) is in the past
+        // Allow a 1-minute grace period to account for form submission delay
+        if ($requestDateTime < ($now - 60)) {
+            $errors[] = 'Request date and time cannot be in the past. Please select a current or future time.';
+        }
+
+        // Required fields
+        if (empty($data['employee_name'])) {
+            $errors[] = 'Employee name is required';
+        }
+        if (empty($data['purpose_of_travel'])) {
+            $errors[] = 'Purpose of travel is required';
+        }
+        if (empty($data['destination'])) {
+            $errors[] = 'Destination is required';
+        }
+        if (empty($data['travel_type'])) {
+            $errors[] = 'Travel type is required';
+        }
+
+        return [
+            'valid' => empty($errors),
+            'errors' => $errors
+        ];
     }
 
     /**
