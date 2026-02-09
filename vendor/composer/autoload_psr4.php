@@ -8,5 +8,6 @@ $baseDir = dirname($vendorDir);
 return array(
     'SDO\\Atlas\\' => array($baseDir . '/src'),
     'PhpOffice\\PhpWord\\' => array($vendorDir . '/phpoffice/phpword/src/PhpWord'),
+    'PHPMailer\\PHPMailer\\' => array($vendorDir . '/phpmailer/phpmailer/src'),
     'Laminas\\Escaper\\' => array($vendorDir . '/laminas/laminas-escaper/src'),
 );

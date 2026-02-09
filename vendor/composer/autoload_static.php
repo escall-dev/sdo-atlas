@@ -14,6 +14,7 @@ class ComposerStaticInit835a6b1bbe86ab102259d3fea8041c0b
         'P' =>
         array (
             'PhpOffice\\PhpWord\\' => 18,
+            'PHPMailer\\PHPMailer\\' => 20,
         ),
         'L' =>
         array (
@@ -30,6 +31,10 @@ class ComposerStaticInit835a6b1bbe86ab102259d3fea8041c0b
         array (
             0 => __DIR__ . '/..' . '/phpoffice/phpword/src/PhpWord',
         ),
+        'PHPMailer\\PHPMailer\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/phpmailer/phpmailer/src',
+        ),
         'Laminas\\Escaper\\' =>
         array (
             0 => __DIR__ . '/..' . '/laminas/laminas-escaper/src',
@@ -43,6 +48,13 @@ class ComposerStaticInit835a6b1bbe86ab102259d3fea8041c0b
         'Laminas\\Escaper\\Exception\\ExceptionInterface' => __DIR__ . '/..' . '/laminas/laminas-escaper/src/Exception/ExceptionInterface.php',
         'Laminas\\Escaper\\Exception\\InvalidArgumentException' => __DIR__ . '/..' . '/laminas/laminas-escaper/src/Exception/InvalidArgumentException.php',
         'Laminas\\Escaper\\Exception\\RuntimeException' => __DIR__ . '/..' . '/laminas/laminas-escaper/src/Exception/RuntimeException.php',
+        'PHPMailer\\PHPMailer\\DSNConfigurator' => __DIR__ . '/..' . '/phpmailer/phpmailer/src/DSNConfigurator.php',
+        'PHPMailer\\PHPMailer\\Exception' => __DIR__ . '/..' . '/phpmailer/phpmailer/src/Exception.php',
+        'PHPMailer\\PHPMailer\\OAuth' => __DIR__ . '/..' . '/phpmailer/phpmailer/src/OAuth.php',
+        'PHPMailer\\PHPMailer\\OAuthTokenProvider' => __DIR__ . '/..' . '/phpmailer/phpmailer/src/OAuthTokenProvider.php',
+        'PHPMailer\\PHPMailer\\PHPMailer' => __DIR__ . '/..' . '/phpmailer/phpmailer/src/PHPMailer.php',
+        'PHPMailer\\PHPMailer\\POP3' => __DIR__ . '/..' . '/phpmailer/phpmailer/src/POP3.php',
+        'PHPMailer\\PHPMailer\\SMTP' => __DIR__ . '/..' . '/phpmailer/phpmailer/src/SMTP.php',
         'PhpOffice\\PhpWord\\Collection\\AbstractCollection' => __DIR__ . '/..' . '/phpoffice/phpword/src/PhpWord/Collection/AbstractCollection.php',
         'PhpOffice\\PhpWord\\Collection\\Bookmarks' => __DIR__ . '/..' . '/phpoffice/phpword/src/PhpWord/Collection/Bookmarks.php',
         'PhpOffice\\PhpWord\\Collection\\Charts' => __DIR__ . '/..' . '/phpoffice/phpword/src/PhpWord/Collection/Charts.php',
