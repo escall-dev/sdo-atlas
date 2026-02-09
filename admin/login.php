@@ -203,6 +203,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border-color: var(--primary-light);
             background: rgba(0, 0, 0, 0.4);
         }
+
+        .forgot-password-link {
+            text-align: right;
+            margin-bottom: 16px;
+            margin-top: -8px;
+        }
+
+        .forgot-password-link a {
+            color: var(--accent);
+            font-size: 0.82rem;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        .forgot-password-link a:hover {
+            color: var(--gold);
+            text-decoration: underline;
+        }
         
         .error-message {
             background: rgba(239, 68, 68, 0.1);
@@ -367,6 +386,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <label class="form-label" for="password">Password</label>
                     <input type="password" class="form-control" id="password" name="password" 
                            placeholder="Enter your password" required>
+                </div>
+
+                <div class="forgot-password-link">
+                    <a href="<?php echo ADMIN_URL; ?>/forgot-password.php">
+                        <i class="fas fa-key"></i> Forgot Password?
+                    </a>
                 </div>
                 
                 <button type="submit" class="btn btn-primary">

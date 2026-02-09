@@ -59,7 +59,8 @@ $pageTitles = [
     'unit-routing' => 'Unit Routing Configuration',
     'logs' => 'Activity Logs',
     'profile' => 'My Profile',
-    'oic-management' => 'OIC Management'
+    'oic-management' => 'OIC Management',
+    'password-resets' => 'Password Reset Management'
 ];
 
 $pageTitle = $pageTitles[$currentPage] ?? 'Admin Panel';
@@ -175,6 +176,11 @@ function navUrl($path) {
                 <a href="<?php echo navUrl('/unit-routing.php'); ?>" class="nav-item <?php echo $currentPage === 'unit-routing' ? 'active' : ''; ?>" data-tooltip="Unit Routing">
                     <span class="nav-icon"><i class="fas fa-route"></i></span>
                     <span class="nav-text">Unit Routing</span>
+                </a>
+                
+                <a href="<?php echo navUrl('/password-resets.php'); ?>" class="nav-item <?php echo $currentPage === 'password-resets' ? 'active' : ''; ?>" data-tooltip="Password Resets">
+                    <span class="nav-icon"><i class="fas fa-key"></i></span>
+                    <span class="nav-text">Password Resets</span>
                 </a>
                 <?php endif; ?>
                 

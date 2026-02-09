@@ -38,15 +38,15 @@ if (!function_exists('loadEnvFile')) {
 define('MAIL_ENABLED', filter_var(getenv('MAIL_ENABLED') ?: 'true', FILTER_VALIDATE_BOOLEAN));
 define('SMTP_HOST', getenv('SMTP_HOST') ?: 'smtp.gmail.com');
 define('SMTP_PORT', intval(getenv('SMTP_PORT') ?: 587));
-define('SMTP_USERNAME', getenv('SMTP_USERNAME') ?: '');
-define('SMTP_PASSWORD', getenv('SMTP_PASSWORD') ?: '');
+define('SMTP_USERNAME', getenv('SMTP_USERNAME') ?: 'ict.sanpedrocity@deped.gov.ph');
+define('SMTP_PASSWORD', getenv('SMTP_PASSWORD') ?: 'jdsh bccg fbdd vodw');
 define('SMTP_ENCRYPTION', getenv('SMTP_ENCRYPTION') ?: 'tls'); // 'tls' or 'ssl'
 define('SMTP_AUTH', filter_var(getenv('SMTP_AUTH') ?: 'true', FILTER_VALIDATE_BOOLEAN));
 
 // Sender Configuration
-define('MAIL_FROM_ADDRESS', getenv('MAIL_FROM_ADDRESS') ?: '');
-define('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME') ?: 'SDO CTS - San Pedro Division Office');
-define('MAIL_REPLY_TO', getenv('MAIL_REPLY_TO') ?: '');
+define('MAIL_FROM_ADDRESS', getenv('MAIL_FROM_ADDRESS') ?: 'ict.sanpedrocity@deped.gov.ph');
+define('MAIL_FROM_NAME', getenv('MAIL_FROM_NAME') ?: 'SDO ATLAS - The Schools Division Office of San Pedro City Authority to Travel and Locator Approval System');
+define('MAIL_REPLY_TO', getenv('MAIL_REPLY_TO') ?: 'ict.sanpedrocity@deped.gov.ph');
 
 // Admin notification recipients (comma-separated emails)
 define('ADMIN_EMAIL_RECIPIENTS', getenv('ADMIN_EMAIL_RECIPIENTS') ?: '');
