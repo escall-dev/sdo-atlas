@@ -10,7 +10,7 @@ require_once __DIR__ . '/../config/admin_config.php';
 
 class PasswordReset {
     private $db;
-    const MAX_ATTEMPTS = 5;
+    const MAX_ATTEMPTS = 3;
     const OTP_EXPIRY_MINUTES = 5;
     const OTP_LENGTH = 6;
     const MAX_OTP_INPUT_ATTEMPTS = 5;
@@ -48,12 +48,14 @@ class PasswordReset {
      */
     public function incrementAttempt($userId) {
         // Upsert: insert or update
+        // Note: MySQL evaluates SET left-to-right, so attempt_count already holds the
+        // new value by the time the IF runs — no extra +1 needed.
         $sql = "INSERT INTO password_reset_attempts (user_id, attempt_count, last_attempt_at)
                 VALUES (?, 1, NOW())
                 ON DUPLICATE KEY UPDATE 
                     attempt_count = attempt_count + 1,
                     last_attempt_at = NOW(),
-                    is_blocked = IF(attempt_count + 1 >= ?, 1, 0)";
+                    is_blocked = IF(attempt_count >= ?, 1, 0)";
         $this->db->query($sql, [$userId, self::MAX_ATTEMPTS]);
 
         return $this->getAttemptCount($userId);
@@ -384,13 +386,15 @@ class PasswordReset {
      */
     public function incrementResendCount($userId) {
         // Start a new window if none exists
+        // Note: MySQL evaluates SET left-to-right, so resend_count already holds the
+        // new value by the time the IF runs — no extra +1 needed.
         $sql = "INSERT INTO password_reset_attempts (user_id, resend_count, resend_window_start, last_attempt_at)
                 VALUES (?, 1, NOW(), NOW())
                 ON DUPLICATE KEY UPDATE 
                     resend_count = resend_count + 1,
                     resend_window_start = IF(resend_window_start IS NULL, NOW(), resend_window_start),
                     last_attempt_at = NOW(),
-                    resend_blocked = IF(resend_count + 1 >= ?, 1, 0)";
+                    resend_blocked = IF(resend_count >= ?, 1, 0)";
         $this->db->query($sql, [$userId, self::MAX_RESEND_PER_HOUR]);
         
         return $this->checkResendLimit($userId);

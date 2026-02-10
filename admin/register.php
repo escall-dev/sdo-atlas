@@ -2,6 +2,13 @@
 /**
  * Employee Self-Registration Page
  * SDO ATLAS - Schools Division Office Authority to Travel and Locator Approval System
+ *
+ * Flow:
+ *  1. User fills out the form.
+ *  2. Clicks "Verify Email" → data is sent via AJAX to the registration-otp API.
+ *  3. Temporary record + OTP are created; OTP email is sent.
+ *  4. User is redirected to verify-email.php to enter the OTP.
+ *  5. On success the account is created automatically (active, no admin approval needed).
  */
 
 // Prevent caching
@@ -29,43 +36,14 @@ $offices = getSDOOfficesFromDB(true);
 $topOffices = getSDOOfficesForOfficeDropdown();
 $unitsByOffice = getUnitsByOfficeForJs();
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $formData = [
-        'full_name' => trim($_POST['full_name'] ?? ''),
-        'email' => trim($_POST['email'] ?? ''),
-        'employee_no' => trim($_POST['employee_no'] ?? ''),
-        'employee_position' => trim($_POST['employee_position'] ?? ''),
-        'office_id' => $_POST['office_id'] ?? '',
-        'password' => $_POST['password'] ?? '',
-        'password_confirm' => $_POST['password_confirm'] ?? ''
-    ];
-    
-    // Validation
-    if (empty($formData['full_name'])) {
-        $error = 'Full name is required.';
-    } elseif (empty($formData['email'])) {
-        $error = 'Email address is required.';
-    } elseif (!filter_var($formData['email'], FILTER_VALIDATE_EMAIL)) {
-        $error = 'Please enter a valid email address.';
-    } elseif (empty($formData['password'])) {
-        $error = 'Password is required.';
-    } elseif (strlen($formData['password']) < 8) {
-        $error = 'Password must be at least 8 characters long.';
-    } elseif ($formData['password'] !== $formData['password_confirm']) {
-        $error = 'Passwords do not match.';
-    } else {
-        $userModel = new AdminUser();
-        $result = $userModel->register($formData);
-        
-        if (isset($result['error'])) {
-            $error = $result['error'];
-        } else {
-            // Redirect to login with success message
-            header('Location: ' . ADMIN_URL . '/login.php?registered=1');
-            exit;
-        }
-    }
+// Show error if redirected back from OTP page
+if (isset($_GET['otp_error'])) {
+    $error = match ($_GET['otp_error']) {
+        'exhausted' => 'OTP input attempts exhausted. Please fill in the form and verify your email again.',
+        'expired'   => 'Your OTP has expired. Please fill in the form and verify your email again.',
+        'invalid'   => 'Verification session invalid. Please register again.',
+        default     => 'An error occurred. Please try again.'
+    };
 }
 ?>
 <!DOCTYPE html>
@@ -287,10 +265,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div class="info-box">
                 <i class="fas fa-info-circle"></i>
-                Your account will need to be approved by an administrator before you can login.
+                An OTP will be sent to your email for verification. After verifying, your account will be created and ready to use immediately.
             </div>
 
-            <form method="POST" action="">
+            <form id="registerForm" onsubmit="return false;">
                 <div class="form-row">
                     <div class="form-group">
                         <label class="form-label" for="full_name">Full Name <span class="required">*</span></label>
@@ -354,9 +332,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                placeholder="Teacher I">
                     </div>
                 </div>
-                
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-user-plus"></i> Register
+
+                <!-- Status area for AJAX feedback -->
+                <div id="registerStatus" style="display:none; margin-bottom:12px;"></div>
+
+                <button type="button" id="btnVerifyEmail" class="btn btn-primary" onclick="handleVerifyEmail()">
+                    <i class="fas fa-envelope"></i> Verify Email &amp; Register
                 </button>
                 
                 <a href="<?php echo ADMIN_URL; ?>/login.php" class="btn btn-secondary">
@@ -387,6 +368,74 @@ var unitsByOfficeReg = <?php echo json_encode($unitsByOffice); ?>;
         }
     });
 })();
+
+function showStatus(msg, type) {
+    var el = document.getElementById('registerStatus');
+    el.style.display = 'block';
+    el.className = type === 'error' ? 'error-message' : 'info-box';
+    el.innerHTML = '<i class="fas fa-' + (type === 'error' ? 'exclamation-triangle' : 'spinner fa-spin') + '"></i> ' + msg;
+}
+function hideStatus() {
+    document.getElementById('registerStatus').style.display = 'none';
+}
+
+function handleVerifyEmail() {
+    hideStatus();
+    var fullName = document.getElementById('full_name').value.trim();
+    var email    = document.getElementById('email').value.trim();
+    var password = document.getElementById('password').value;
+    var passwordConfirm = document.getElementById('password_confirm').value;
+    var officeId = document.getElementById('reg_unit_id').value;
+    var employeeNo = document.getElementById('employee_no').value.trim();
+    var employeePosition = document.getElementById('employee_position').value.trim();
+
+    // Client-side validation
+    if (!fullName) { showStatus('Full name is required.', 'error'); return; }
+    if (!email) { showStatus('Email address is required.', 'error'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showStatus('Please enter a valid email address.', 'error'); return; }
+    if (!password) { showStatus('Password is required.', 'error'); return; }
+    if (password.length < 8) { showStatus('Password must be at least 8 characters long.', 'error'); return; }
+    if (password !== passwordConfirm) { showStatus('Passwords do not match.', 'error'); return; }
+
+    // Disable button
+    var btn = document.getElementById('btnVerifyEmail');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending OTP...';
+
+    showStatus('Sending verification email...', 'info');
+
+    fetch('<?php echo ADMIN_URL; ?>/api/registration-otp.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action: 'request',
+            full_name: fullName,
+            email: email,
+            password: password,
+            password_confirm: passwordConfirm,
+            office_id: officeId || null,
+            employee_no: employeeNo || null,
+            employee_position: employeePosition || null
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-envelope"></i> Verify Email &amp; Register';
+
+        if (data.success) {
+            // Redirect to OTP input page
+            window.location.href = '<?php echo ADMIN_URL; ?>/verify-email.php?email=' + encodeURIComponent(email);
+        } else {
+            showStatus(data.message || 'An error occurred.', 'error');
+        }
+    })
+    .catch(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-envelope"></i> Verify Email &amp; Register';
+        showStatus('Network error. Please try again.', 'error');
+    });
+}
 </script>
 </body>
 </html>

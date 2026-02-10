@@ -111,12 +111,29 @@ function handleRequestOTP($input, $userModel, $resetModel, $activityLog) {
         return;
     }
 
-    // Check if blocked
+    // Check if blocked (permanent block until admin reset)
     if ($resetModel->isBlocked($user['id'])) {
         echo json_encode([
             'success' => false,
             'blocked' => true,
             'message' => 'You have reached the maximum number of password reset attempts. Please contact the ICT unit for assistance.'
+        ]);
+        return;
+    }
+
+    // Check 3-per-hour rate limit (shared between initial request and resend)
+    $resendCheck = $resetModel->checkResendLimit($user['id']);
+    if (!$resendCheck['allowed']) {
+        $msg = 'You have reached the maximum OTP requests (3 per hour).';
+        if ($resendCheck['blocked_until']) {
+            $until = new DateTime($resendCheck['blocked_until']);
+            $msg .= ' Try again after ' . $until->format('g:i A') . '.';
+        }
+        echo json_encode([
+            'success' => false,
+            'resend_blocked' => true,
+            'message' => $msg,
+            'blocked_until' => $resendCheck['blocked_until']
         ]);
         return;
     }
@@ -137,6 +154,9 @@ function handleRequestOTP($input, $userModel, $resetModel, $activityLog) {
         return;
     }
 
+    // Increment the 3-per-hour resend counter (counts initial request too)
+    $resendResult = $resetModel->incrementResendCount($user['id']);
+
     // Send OTP via email
     $emailSent = sendOTPEmail($email, $user['full_name'], $result['otp']);
 
@@ -151,13 +171,14 @@ function handleRequestOTP($input, $userModel, $resetModel, $activityLog) {
         'password_reset_request',
         'user',
         $user['id'],
-        'Password reset OTP requested. Attempt ' . (PasswordReset::MAX_ATTEMPTS - $result['attempts_remaining'] + 1) . ' of ' . PasswordReset::MAX_ATTEMPTS . '.'
+        'Password reset OTP requested. OTP request ' . $resendResult['count'] . '/' . PasswordReset::MAX_RESEND_PER_HOUR . ' this hour.'
     );
 
     echo json_encode([
         'success' => true,
         'message' => 'OTP has been sent to your email address. Please check your inbox.',
-        'attempts_remaining' => $result['attempts_remaining']
+        'attempts_remaining' => $result['attempts_remaining'],
+        'otp_requests_remaining' => max(0, PasswordReset::MAX_RESEND_PER_HOUR - $resendResult['count'])
     ]);
 }
 

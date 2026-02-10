@@ -29,6 +29,9 @@ if (isset($_GET['logged_out'])) {
 if (isset($_GET['registered'])) {
     $success = 'Registration successful! Please wait for admin approval before logging in.';
 }
+if (isset($_GET['verified'])) {
+    $success = 'Your email has been verified and your account is ready. You can now log in!';
+}
 if (isset($_GET['pending'])) {
     $error = 'Your account is pending approval. Please contact the administrator.';
 }

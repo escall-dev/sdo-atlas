@@ -184,20 +184,20 @@ $stats = $resetModel->getAttemptStats();
                     <td style="padding: 12px; text-align: center;">
                         <span style="font-weight: 600; font-size: 0.92rem; color: #8b5cf6;"><?php echo (int)$a['verification_access_count']; ?></span>
                     </td>
-                    <!-- OTP Requests (attempt_count / 5) -->
+                    <!-- OTP Requests (attempt_count / 3) -->
                     <td style="padding: 12px; text-align: center;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 3px;">
-                            <span style="font-weight: 700; font-size: 0.92rem; color: <?php echo $a['attempt_count'] >= 5 ? '#ef4444' : ($a['attempt_count'] >= 3 ? '#f59e0b' : 'var(--text-primary)'); ?>;"><?php echo (int)$a['attempt_count']; ?></span>
-                            <span style="font-size: 0.72rem; color: var(--text-muted);">/ 5</span>
+                            <span style="font-weight: 700; font-size: 0.92rem; color: <?php echo $a['attempt_count'] >= 3 ? '#ef4444' : ($a['attempt_count'] >= 2 ? '#f59e0b' : 'var(--text-primary)'); ?>;"><?php echo (int)$a['attempt_count']; ?></span>
+                            <span style="font-size: 0.72rem; color: var(--text-muted);">/ 3</span>
                         </div>
                         <div style="width: 50px; height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; margin: 3px auto 0; overflow: hidden;">
-                            <div style="height: 100%; width: <?php echo min(100, ($a['attempt_count'] / 5) * 100); ?>%; background: <?php echo $a['attempt_count'] >= 5 ? '#ef4444' : ($a['attempt_count'] >= 3 ? '#f59e0b' : '#10b981'); ?>; border-radius: 2px;"></div>
+                            <div style="height: 100%; width: <?php echo min(100, ($a['attempt_count'] / 3) * 100); ?>%; background: <?php echo $a['attempt_count'] >= 3 ? '#ef4444' : ($a['attempt_count'] >= 2 ? '#f59e0b' : '#10b981'); ?>; border-radius: 2px;"></div>
                         </div>
                     </td>
                     <!-- OTP Input Attempts -->
                     <td style="padding: 12px; text-align: center;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 3px;">
-                            <span style="font-weight: 600; font-size: 0.92rem; color: <?php echo $a['otp_input_attempts'] >= 5 ? '#ef4444' : ($a['otp_input_attempts'] >= 3 ? '#f59e0b' : 'var(--text-primary)'); ?>;"><?php echo (int)$a['otp_input_attempts']; ?></span>
+                            <span style="font-weight: 600; font-size: 0.92rem; color: <?php echo $a['otp_input_attempts'] >= 5 ? '#ef4444' : ($a['otp_input_attempts'] >= 4 ? '#f59e0b' : 'var(--text-primary)'); ?>;"><?php echo (int)$a['otp_input_attempts']; ?></span>
                             <span style="font-size: 0.72rem; color: var(--text-muted);">/ 5</span>
                         </div>
                     </td>
