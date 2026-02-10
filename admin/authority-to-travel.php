@@ -164,8 +164,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
-    // Handle executive approve action (by Superadmin/SDS)
-    if ($postAction === 'executive_approve' && $auth->isSuperAdmin()) {
+    // Handle executive approve action (by SDS only, not Superadmin)
+    if ($postAction === 'executive_approve' && $auth->isSDS()) {
         $id = $_POST['id'];
         $at = $atModel->getById($id);
         
@@ -582,13 +582,13 @@ if ($type === 'national') {
         <form method="POST" action="">
             <div class="modal-body">
                 <input type="hidden" name="_token" value="<?php echo $currentToken; ?>">
-                <input type="hidden" name="action" value="<?php echo $auth->isSuperAdmin() ? 'executive_approve' : 'approve'; ?>">
+                <input type="hidden" name="action" value="<?php echo $auth->isSDS() ? 'executive_approve' : 'approve'; ?>">
                 <input type="hidden" name="id" id="approveId" value="">
 
                 <p style="margin-bottom: 10px;">
                     Are you sure you want to approve this Authority to Travel?
                 </p>
-                <?php if ($auth->isSuperAdmin()): ?>
+                <?php if ($auth->isSDS()): ?>
                 <p style="margin-bottom: 10px; color: var(--warning);">
                     <i class="fas fa-exclamation-triangle"></i> This is an Executive Override (SDS approval).
                 </p>

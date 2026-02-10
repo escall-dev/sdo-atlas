@@ -102,12 +102,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ls = $lsModel->getById($id);
         
         // Check if user can approve:
-        // 1. They are the assigned approver
-        // 2. They are acting as OIC for the assigned approver's role
-        // 3. ASDS only when this slip is assigned to ASDS (Office Chief as requestor)
-        // 4. Superadmin can override
+        // 1. They are the assigned approver (by user ID)
+        // 2. Their role matches the assigned approver role (e.g. OSDS Chief for OSDS-routed requests)
+        // 3. They are acting as OIC for the assigned approver's role
+        // 4. ASDS only when this slip is assigned to ASDS (Office Chief as requestor)
+        // Note: Superadmin can VIEW all requests but cannot approve/reject
         $canApprove = ($ls['assigned_approver_user_id'] == $auth->getUserId()) ||
-                     $auth->isSuperAdmin() ||
+                     ($currentRoleId == $ls['assigned_approver_role_id'] && in_array($currentRoleId, UNIT_HEAD_ROLES)) ||
                      ($auth->isASDS() && (int)($ls['assigned_approver_role_id'] ?? 0) === ROLE_ASDS);
 
         if (!$canApprove && $auth->isActingAsOIC()) {
@@ -153,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $canReject = $ls && $ls['status'] === 'pending' &&
             (($ls['assigned_approver_user_id'] == $auth->getUserId()) ||
-             $auth->isSuperAdmin() ||
+             ($currentRoleId == $ls['assigned_approver_role_id'] && in_array($currentRoleId, UNIT_HEAD_ROLES)) ||
              ($auth->isASDS() && (int)($ls['assigned_approver_role_id'] ?? 0) === ROLE_ASDS));
         if (!$canReject && $ls && $auth->isActingAsOIC()) {
             $oicInfo = $auth->getActiveOICDelegation();
@@ -461,7 +462,7 @@ if (!$editData || !$lsModel->canUserEdit($editData, $auth->getUserId())) {
         <?php 
         $canApprove = $viewData['status'] === 'pending' &&
                      ($viewData['assigned_approver_user_id'] == $auth->getUserId() ||
-                      $auth->isSuperAdmin() ||
+                      ($currentRoleId == $viewData['assigned_approver_role_id'] && in_array($currentRoleId, UNIT_HEAD_ROLES)) ||
                       ($auth->isASDS() && (int)($viewData['assigned_approver_role_id'] ?? 0) === ROLE_ASDS));
 
         if (!$canApprove && $viewData['status'] === 'pending' && $auth->isActingAsOIC()) {

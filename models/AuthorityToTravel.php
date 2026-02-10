@@ -805,9 +805,9 @@ class AuthorityToTravel {
      * For unit heads, also verifies the request is from their supervised office
      */
     public function canUserActOn($at, $userRoleId, $userRoleName) {
-        // Superadmin can act on anything
+        // Superadmin can VIEW all requests but cannot approve/reject/recommend
         if ($userRoleId == ROLE_SUPERADMIN) {
-            return true;
+            return false;
         }
 
         // If already completed (approved/rejected), no action
@@ -841,11 +841,6 @@ class AuthorityToTravel {
     public function getAvailableAction($at, $userRoleId, $userRoleName) {
         if (!$this->canUserActOn($at, $userRoleId, $userRoleName)) {
             return null;
-        }
-
-        // Superadmin has executive override
-        if ($userRoleId == ROLE_SUPERADMIN) {
-            return 'executive_approve';
         }
 
         // SDS can approve at final stage (final approver for all travel requests)
