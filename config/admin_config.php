@@ -42,7 +42,7 @@ define('OFFICE_CHIEF_ROLES', [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF])
 define('OSDS_UNITS', [
     'OSDS', 'Personnel', 'Property and Supply', 'Records', 'Cash',
     'Procurement', 'General Services', 'Legal', 'ICT',
-    'Accounting', 'Budget'
+    'Accounting', 'Budget', 'Administrative'
 ]);
 
 // Role to Office Mapping for Routing
@@ -64,6 +64,7 @@ define('ROLE_OFFICE_MAP', [
     'EF' => ROLE_SGOD_CHIEF,
     'SHN_DENTAL' => ROLE_SGOD_CHIEF,
     'SHN_MEDICAL' => ROLE_SGOD_CHIEF,
+    'SHN' => ROLE_SGOD_CHIEF,
     // OSDS units map to OSDS_CHIEF (AO V)
     'OSDS' => ROLE_OSDS_CHIEF,
     'Personnel' => ROLE_OSDS_CHIEF,
@@ -75,18 +76,19 @@ define('ROLE_OFFICE_MAP', [
     'Legal' => ROLE_OSDS_CHIEF,
     'ICT' => ROLE_OSDS_CHIEF,
     'Accounting' => ROLE_OSDS_CHIEF,
-    'Budget' => ROLE_OSDS_CHIEF
+    'Budget' => ROLE_OSDS_CHIEF,
+    'Administrative' => ROLE_OSDS_CHIEF
 ]);
 
 // Offices supervised by each Unit Head Role (reverse mapping)
 // Updated per Routing Directive: OSDS Chief supervises all OSDS units
 define('UNIT_HEAD_OFFICES', [
     ROLE_CID_CHIEF => ['CID', 'IM', 'LRM', 'ALS', 'DIS'],
-    ROLE_SGOD_CHIEF => ['SGOD', 'SMME', 'HRD', 'SMN', 'PR', 'DRRM', 'EF', 'SHN_DENTAL', 'SHN_MEDICAL'],
+    ROLE_SGOD_CHIEF => ['SGOD', 'SMME', 'HRD', 'SMN', 'PR', 'DRRM', 'EF', 'SHN_DENTAL', 'SHN_MEDICAL', 'SHN'],
     ROLE_OSDS_CHIEF => [
         'OSDS', 'Personnel', 'Property and Supply', 'Records', 'Cash',
         'Procurement', 'General Services', 'Legal', 'ICT',
-        'Accounting', 'Budget'
+        'Accounting', 'Budget', 'Administrative'
     ]
 ]);
 
@@ -210,6 +212,7 @@ define('SDO_OFFICES', [
     'EF' => 'Education Facilities',
     'SHN_DENTAL' => 'School Health and Nutrition (Dental)',
     'SHN_MEDICAL' => 'School Health and Nutrition (Medical)',
+    'SHN' => 'School Health and Nutrition',
     // OSDS Units (all route to OSDS Chief) - display without extensions
     'OSDS' => 'Office of the Schools Division Superintendent Staff',
     'Personnel' => 'Personnel',
@@ -221,7 +224,8 @@ define('SDO_OFFICES', [
     'Legal' => 'Legal',
     'ICT' => 'Information and Communication Technology',
     'Accounting' => 'Finance (Accounting)',
-    'Budget' => 'Finance (Budget)'
+    'Budget' => 'Finance (Budget)',
+    'Administrative' => 'Administrative'
 ]);
 
 /**

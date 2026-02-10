@@ -52,6 +52,7 @@ The SDO has **three top-level offices** (divisions). Each has one **Office Chief
 | ICT                     | Information and Communication Technology|
 | Accounting              | Finance (Accounting)                    |
 | Budget                  | Finance (Budget)                        |
+| Administrative          | Administrative                          |
 
 ---
 
@@ -74,6 +75,7 @@ The SDO has **three top-level offices** (divisions). Each has one **Office Chief
 | EF        | Education Facilities                        |
 | SHN_DENTAL| School Health and Nutrition (Dental)        |
 | SHN_MEDICAL| School Health and Nutrition (Medical)      |
+| SHN       | School Health and Nutrition                 |
 
 ---
 
