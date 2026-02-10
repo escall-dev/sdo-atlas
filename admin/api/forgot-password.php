@@ -570,6 +570,6 @@ SECURITY NOTICE:
 ---
 SDO ATLAS - Department of Education
 Schools Division Office of San Pedro City
-ict.sanpedrocity@deped.gov.ph
+
 TEXT;
 }
