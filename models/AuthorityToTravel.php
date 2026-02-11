@@ -20,7 +20,7 @@ class AuthorityToTravel {
      * Returns: [current_approver_role, routing_stage, recommending_authority_name]
      * Updated: Uses database-driven unit_routing_config table
      */
-    public function determineRouting($requesterRoleId, $requesterOfficeId = null, $requesterOffice = null, $travelScope = null) {
+    public function determineRouting($requesterRoleId, $requesterOfficeId = null, $requesterOffice = null, $travelScope = null, $employeePosition = null) {
         // Unit heads skip recommending stage and go directly to SDS for final approval
         if (in_array($requesterRoleId, UNIT_HEAD_ROLES)) {
             return [
@@ -29,6 +29,21 @@ class AuthorityToTravel {
                 'recommending_authority_name' => null,
                 'recommending_date' => null
             ];
+        }
+
+        // Specific positions route directly to SDS (Attorney III, Accountant III, Administrative Officer V)
+        if ($employeePosition && defined('DIRECT_SDS_POSITIONS')) {
+            $posNormalized = trim($employeePosition);
+            foreach (DIRECT_SDS_POSITIONS as $directPos) {
+                if (strcasecmp($posNormalized, $directPos) === 0) {
+                    return [
+                        'current_approver_role' => 'SDS',
+                        'routing_stage' => 'final',
+                        'recommending_authority_name' => null,
+                        'recommending_date' => null
+                    ];
+                }
+            }
         }
 
         // Regular employees route to their unit head first
@@ -240,8 +255,9 @@ class AuthorityToTravel {
         }
         $requesterOffice = $requesterOffice ?? ($data['requester_office'] ?? null);
         
-        // Determine routing based on role, office, and travel scope
-        $routing = $this->determineRouting($requesterRoleId, $requesterOfficeId, $requesterOffice, $travelScope);
+        // Determine routing based on role, office, travel scope, and employee position
+        $employeePosition = $data['employee_position'] ?? null;
+        $routing = $this->determineRouting($requesterRoleId, $requesterOfficeId, $requesterOffice, $travelScope, $employeePosition);
         
         // Get effective approver (may be OIC)
         $assignedApproverUserId = null;

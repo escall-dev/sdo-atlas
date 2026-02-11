@@ -306,22 +306,6 @@ foreach ($routingConfigs as $config) {
     </form>
 </div>
 
-<!-- Summary Cards by Approver (3 in one row) -->
-<div class="stats-grid-approvers">
-    <?php foreach ($configsByRole as $roleId => $roleData): ?>
-    <div class="stat-card stat-card-compact">
-        <div class="stat-icon stat-icon-compact" style="background: linear-gradient(135deg, #0f4c75, #1b6ca8);">
-            <i class="fas fa-user-tie"></i>
-        </div>
-        <div class="stat-content">
-            <h3 class="stat-card-title"><?php echo htmlspecialchars($roleData['role_name']); ?></h3>
-            <p class="stat-value"><?php echo count($roleData['units']); ?> Units</p>
-            <p class="stat-label stat-label-compact" title="<?php echo htmlspecialchars($roleData['role_description']); ?>"><?php echo htmlspecialchars($roleData['role_description']); ?></p>
-        </div>
-    </div>
-    <?php endforeach; ?>
-</div>
-
 <!-- Routing Configuration Table (same design as Users / Authority to Travel / Locator Slips) -->
 <div class="data-card">
     <div class="table-responsive">
@@ -530,59 +514,6 @@ foreach ($routingConfigs as $config) {
 </div>
 
 <style>
-/* Summary stat cards by approver: 3 in one row, compact */
-.stats-grid-approvers {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
-}
-.stats-grid-approvers .stat-card-compact {
-    padding: 14px 16px;
-    min-width: 0;
-    box-shadow: 0 3px 6px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.04);
-}
-.stats-grid-approvers .stat-card-compact:hover {
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06), 0 6px 16px rgba(0, 0, 0, 0.05);
-}
-.stats-grid-approvers .stat-icon-compact {
-    width: 44px;
-    height: 44px;
-    font-size: 1.2rem;
-    flex-shrink: 0;
-}
-.stats-grid-approvers .stat-icon-compact i {
-    font-size: 1.2rem;
-}
-.stats-grid-approvers .stat-card-title {
-    margin: 0 0 4px 0;
-    font-size: 0.95rem;
-    font-weight: 700;
-    color: var(--text-primary, #0f172a);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.stats-grid-approvers .stat-value {
-    font-size: 1.35rem;
-    font-weight: 800;
-}
-.stats-grid-approvers .stat-label-compact {
-    font-size: 0.75rem;
-    margin-top: 2px;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-    line-height: 1.3;
-}
-@media (max-width: 900px) {
-    .stats-grid-approvers {
-        grid-template-columns: 1fr;
-    }
-}
-
 .badge-office {
     background: var(--bg-tertiary, #e2e8f0);
     color: var(--text-secondary, #475569);

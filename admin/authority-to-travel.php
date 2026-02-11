@@ -292,6 +292,15 @@ if ($auth->isSuperAdmin() || $auth->isASDS() || $auth->isSDS()) {
     foreach ($unitHeads as $uh) {
         $allApprovers[$uh['id']] = $uh['full_name'] . ' (' . $uh['role_name'] . ')';
     }
+    // Add ASDS and SDS as filter options
+    $asdsUsers = $userModel->getByRole(ROLE_ASDS, true);
+    foreach ($asdsUsers as $au) {
+        $allApprovers[$au['id']] = $au['full_name'] . ' (ASDS)';
+    }
+    $sdsUsers = $userModel->getByRole(ROLE_SDS, true);
+    foreach ($sdsUsers as $su) {
+        $allApprovers[$su['id']] = $su['full_name'] . ' (SDS)';
+    }
 }
 
 // Pre-fill form
@@ -369,6 +378,14 @@ if ($type === 'national') {
                     <div class="detail-item">
                         <label>Position</label>
                         <span><?php echo htmlspecialchars($viewData['employee_position'] ?: '-'); ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Office/Division</label>
+                        <span><?php echo htmlspecialchars($viewData['requester_office'] ?: '-'); ?></span>
+                    </div>
+                    <div class="detail-item">
+                        <label>Unit</label>
+                        <span><?php echo htmlspecialchars($viewData['filed_by_office'] ?: ($viewData['requester_office'] ?: '-')); ?></span>
                     </div>
                     <div class="detail-item">
                         <label>Permanent Station</label>
@@ -460,7 +477,7 @@ if ($type === 'national') {
                     </div>
                     <div class="detail-item">
                         <label>Status</label>
-                        <span class="status-badge status-pending">Awaiting ASDS Final Approval</span>
+                        <span class="status-badge status-pending">Awaiting SDS Final Approval</span>
                     </div>
                 </div>
             </div>

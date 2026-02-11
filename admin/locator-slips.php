@@ -107,9 +107,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 3. They are acting as OIC for the assigned approver's role
         // 4. ASDS only when this slip is assigned to ASDS (Office Chief as requestor)
         // Note: Superadmin can VIEW all requests but cannot approve/reject
-        $canApprove = ($ls['assigned_approver_user_id'] == $auth->getUserId()) ||
+        // SDS is view-only for Locator Slips — cannot approve
+        $canApprove = !$auth->isSDS() && (
+                     ($ls['assigned_approver_user_id'] == $auth->getUserId()) ||
                      ($currentRoleId == $ls['assigned_approver_role_id'] && in_array($currentRoleId, UNIT_HEAD_ROLES)) ||
-                     ($auth->isASDS() && (int)($ls['assigned_approver_role_id'] ?? 0) === ROLE_ASDS);
+                     ($auth->isASDS() && (int)($ls['assigned_approver_role_id'] ?? 0) === ROLE_ASDS)
+                     );
 
         if (!$canApprove && $auth->isActingAsOIC()) {
             $oicInfo = $auth->getActiveOICDelegation();
@@ -230,11 +233,20 @@ $totalPages = ceil($totalRequests / $perPage);
 require_once __DIR__ . '/../models/AdminUser.php';
 $userModel = new AdminUser();
 $allApprovers = [];
-if ($auth->isSuperAdmin() || $auth->isASDS()) {
+if ($auth->isSuperAdmin() || $auth->isASDS() || $auth->isSDS()) {
     // Get all unit heads
     $unitHeads = $userModel->getUnitHeads(true);
     foreach ($unitHeads as $uh) {
         $allApprovers[$uh['id']] = $uh['full_name'] . ' (' . $uh['role_name'] . ')';
+    }
+    // Add ASDS and SDS as filter options
+    $asdsUsers = $userModel->getByRole(ROLE_ASDS, true);
+    foreach ($asdsUsers as $au) {
+        $allApprovers[$au['id']] = $au['full_name'] . ' (ASDS)';
+    }
+    $sdsUsers = $userModel->getByRole(ROLE_SDS, true);
+    foreach ($sdsUsers as $su) {
+        $allApprovers[$su['id']] = $su['full_name'] . ' (SDS)';
     }
 }
 
@@ -460,7 +472,8 @@ if (!$editData || !$lsModel->canUserEdit($editData, $auth->getUserId())) {
     <div class="complaint-sidebar">
         <!-- Actions -->
         <?php 
-        $canApprove = $viewData['status'] === 'pending' &&
+        // SDS is view-only for Locator Slips — cannot approve
+        $canApprove = !$auth->isSDS() && $viewData['status'] === 'pending' &&
                      ($viewData['assigned_approver_user_id'] == $auth->getUserId() ||
                       ($currentRoleId == $viewData['assigned_approver_role_id'] && in_array($currentRoleId, UNIT_HEAD_ROLES)) ||
                       ($auth->isASDS() && (int)($viewData['assigned_approver_role_id'] ?? 0) === ROLE_ASDS));

@@ -46,25 +46,29 @@ function initSidebar() {
     const sidebar = document.getElementById('sidebar');
     const adminLayout = document.querySelector('.admin-layout');
     const mobileToggle = document.getElementById('mobileMenuToggle');
-    const sidebarToggle = document.getElementById('sidebarToggle');
+    const desktopToggle = document.getElementById('desktopSidebarToggle');
+    
+    if (!sidebar) return;
     
     // Restore sidebar state from localStorage
     const sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
     if (sidebarCollapsed && window.innerWidth >= 992) {
         sidebar.classList.add('collapsed');
-        adminLayout.classList.add('sidebar-collapsed');
+        if (adminLayout) adminLayout.classList.add('sidebar-collapsed');
     }
     
     if (mobileToggle) {
-        mobileToggle.addEventListener('click', function() {
+        mobileToggle.addEventListener('click', function(e) {
+            e.preventDefault();
             sidebar.classList.toggle('open');
         });
     }
     
-    if (sidebarToggle) {
-        sidebarToggle.addEventListener('click', function() {
+    if (desktopToggle) {
+        desktopToggle.addEventListener('click', function(e) {
+            if (e) e.preventDefault();
             const isCollapsed = sidebar.classList.toggle('collapsed');
-            adminLayout.classList.toggle('sidebar-collapsed', isCollapsed);
+            if (adminLayout) adminLayout.classList.toggle('sidebar-collapsed', isCollapsed);
             
             // Save state to localStorage
             localStorage.setItem('sidebarCollapsed', isCollapsed);

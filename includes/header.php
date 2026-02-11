@@ -28,11 +28,16 @@ try {
         
         // For unit heads (or OICs acting as unit heads), get filtered counts
         if ($auth->isUnitHead() && !$auth->isApprover()) {
-            $notificationCounts['ls_pending'] = 0; // Locator slips may have different routing
+            // Unit heads (OSDS Chief, CID Chief, SGOD Chief) see LS assigned to them
+            $notificationCounts['ls_pending'] = $lsModel->getPendingCountForApprover($auth->getUserId());
             $notificationCounts['at_pending'] = $atModel->getPendingCountForRole(
                 $effectiveRoleName, 
                 $effectiveRoleId
             );
+        } elseif ($auth->isSDS()) {
+            // SDS sees all LS (view-only) and AT pending counts
+            $notificationCounts['ls_pending'] = $lsModel->getStatistics()['pending'] ?? 0;
+            $notificationCounts['at_pending'] = $atModel->getStatistics()['pending'] ?? 0;
         } else {
             $notificationCounts['ls_pending'] = $lsModel->getStatistics()['pending'] ?? 0;
             $notificationCounts['at_pending'] = $atModel->getStatistics()['pending'] ?? 0;

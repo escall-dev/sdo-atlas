@@ -98,27 +98,43 @@ class LocatorSlip {
         require_once __DIR__ . '/AdminUser.php';
         $userModel = new AdminUser();
 
-        // Office Chief as requestor: route to ASDS only (never self or other chiefs)
-        if ($requesterRoleId && in_array($requesterRoleId, UNIT_HEAD_ROLES)) {
-            $approverRoleId = ROLE_ASDS;
-            $asdsUsers = $userModel->getByRole(ROLE_ASDS, true);
+        // Check if requestor position routes directly to SDS (Attorney III, Accountant III, AO V)
+        $employeePosition = $data['employee_position'] ?? null;
+        $isDirectSDS = false;
+        if ($employeePosition && defined('DIRECT_SDS_POSITIONS')) {
+            $posNormalized = trim($employeePosition);
+            foreach (DIRECT_SDS_POSITIONS as $directPos) {
+                if (strcasecmp($posNormalized, $directPos) === 0) {
+                    $isDirectSDS = true;
+                    break;
+                }
+            }
+        }
 
-            if (!empty($asdsUsers)) {
-                // Prefer an ASDS user that is not the requester (chief) to avoid self-assignment
-                $primaryAsdsUserId = null;
-                foreach ($asdsUsers as $asdsUser) {
-                    if ((int)$asdsUser['id'] !== (int)$data['user_id']) {
-                        $primaryAsdsUserId = $asdsUser['id'];
+        // Office Chief / ASDS / SDS as requestor: route to SDS
+        if ($requesterRoleId && (in_array($requesterRoleId, UNIT_HEAD_ROLES) || $requesterRoleId == ROLE_ASDS || $requesterRoleId == ROLE_SDS)) {
+            $approverRoleId = ROLE_SDS;
+            $sdsUsers = $userModel->getByRole(ROLE_SDS, true);
+            if (!empty($sdsUsers)) {
+                $primarySdsUserId = null;
+                foreach ($sdsUsers as $sdsUser) {
+                    if ((int)$sdsUser['id'] !== (int)$data['user_id']) {
+                        $primarySdsUserId = $sdsUser['id'];
                         break;
                     }
                 }
-
-                // Fallback to the first ASDS if requester somehow matches (e.g., acting role)
-                if ($primaryAsdsUserId === null) {
-                    $primaryAsdsUserId = $asdsUsers[0]['id'];
+                if ($primarySdsUserId === null) {
+                    $primarySdsUserId = $sdsUsers[0]['id'];
                 }
-
-                $assignedApproverUserId = $this->getEffectiveApproverUserId(ROLE_ASDS, $primaryAsdsUserId);
+                $assignedApproverUserId = $this->getEffectiveApproverUserId(ROLE_SDS, $primarySdsUserId);
+            }
+        }
+        // Specific positions route directly to SDS
+        elseif ($isDirectSDS) {
+            $approverRoleId = ROLE_SDS;
+            $sdsUsers = $userModel->getByRole(ROLE_SDS, true);
+            if (!empty($sdsUsers)) {
+                $assignedApproverUserId = $this->getEffectiveApproverUserId(ROLE_SDS, $sdsUsers[0]['id']);
             }
         }
         // All other employees: route to OSDS Chief (AO V) as sole approver
@@ -240,6 +256,9 @@ class LocatorSlip {
             // ASDS sees only Locator Slips assigned to ASDS (i.e. requests filed by Office Chiefs)
             $sql .= " AND ls.assigned_approver_role_id = ?";
             $params[] = ROLE_ASDS;
+        } elseif ($viewerRoleId == ROLE_SDS) {
+            // SDS sees all Locator Slips (view-only, no approval actions)
+            // No additional filter — show everything
         } elseif ($viewerRoleId == ROLE_SUPERADMIN) {
             // Superadmin sees all requests
             // No additional filter
@@ -331,7 +350,9 @@ class LocatorSlip {
         } elseif ($viewerRoleId == ROLE_ASDS) {
             $sql .= " AND ls.assigned_approver_role_id = ?";
             $params[] = ROLE_ASDS;
-        } elseif ($viewerUserId && !in_array($viewerRoleId, [ROLE_ASDS, ROLE_SUPERADMIN])) {
+        } elseif ($viewerRoleId == ROLE_SDS) {
+            // SDS sees all Locator Slips (view-only) — no additional filter
+        } elseif ($viewerUserId && !in_array($viewerRoleId, [ROLE_ASDS, ROLE_SDS, ROLE_SUPERADMIN])) {
             $sql .= " AND ls.user_id = ?";
             $params[] = $viewerUserId;
         }
@@ -467,6 +488,10 @@ class LocatorSlip {
         if ($viewerRoleId == ROLE_ASDS) {
             return (int) ($ls['assigned_approver_role_id'] ?? 0) === ROLE_ASDS;
         }
+        // SDS can view all locator slips (view-only)
+        if ($viewerRoleId == ROLE_SDS) {
+            return true;
+        }
 
         // Unit heads can view if assigned to them
         if (in_array($viewerRoleId, UNIT_HEAD_ROLES)) {
@@ -554,6 +579,16 @@ class LocatorSlip {
                 FROM locator_slips WHERE 1=1" . $userCondition;
 
         return $this->db->query($sql, $params)->fetch();
+    }
+
+    /**
+     * Get pending LS count assigned to a specific approver (by user ID)
+     */
+    public function getPendingCountForApprover($approverUserId) {
+        $sql = "SELECT COUNT(*) as pending FROM locator_slips 
+                WHERE status = 'pending' AND assigned_approver_user_id = ?";
+        $result = $this->db->query($sql, [$approverUserId])->fetch();
+        return (int)($result['pending'] ?? 0);
     }
 
     /**

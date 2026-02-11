@@ -36,6 +36,10 @@ define('UNIT_HEAD_ROLES', [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF]);
 // Office Chief Roles Array (Chiefs that route to ASDS for LS, to SDS for AT)
 define('OFFICE_CHIEF_ROLES', [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF]);
 
+// Positions that route directly to SDS (skip recommending stage in AT, bypass OSDS Chief in LS)
+// These are matched case-insensitively against admin_users.employee_position
+define('DIRECT_SDS_POSITIONS', ['Attorney III', 'Accountant III', 'Administrative Officer V']);
+
 // OSDS Units (under AO V supervision)
 // Updated per Routing Directive - applies to local and international travel
 // Note: Records is a separate unit from Property and Supply.
