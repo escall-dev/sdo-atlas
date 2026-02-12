@@ -9,14 +9,16 @@ require_once __DIR__ . '/../config/admin_config.php';
 
 use PhpOffice\PhpWord\TemplateProcessor;
 
-class DocxGenerator {
+class DocxGenerator
+{
     private $templateDir;
     private $outputDir;
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->templateDir = TEMPLATE_DIR;
         $this->outputDir = GENERATED_DIR;
-        
+
         // Ensure output directory exists
         if (!is_dir($this->outputDir)) {
             mkdir($this->outputDir, 0755, true);
@@ -26,9 +28,10 @@ class DocxGenerator {
     /**
      * Generate Locator Slip DOCX
      */
-    public function generateLocatorSlip($data) {
+    public function generateLocatorSlip($data)
+    {
         $templateFile = $this->templateDir . DOCX_TEMPLATES['locator_slip'];
-        
+
         if (!file_exists($templateFile)) {
             throw new Exception("Locator Slip template not found: " . $templateFile);
         }
@@ -38,7 +41,7 @@ class DocxGenerator {
         // Set all placeholders
         $travelTypeRaw = $data['travel_type'] ?? '';
         $travelType = $this->normalizeTravelType($travelTypeRaw);
-        
+
         // Ensure mutual exclusivity: only one checkbox can be checked
         $isOfficialBusiness = ($travelType === 'official_business');
         $isOfficialTime = ($travelType === 'official_time');
@@ -81,9 +84,10 @@ class DocxGenerator {
     /**
      * Generate Authority to Travel DOCX (Official - Local)
      */
-    public function generateATLocal($data) {
+    public function generateATLocal($data)
+    {
         $templateFile = $this->templateDir . DOCX_TEMPLATES['at_local'];
-        
+
         if (!file_exists($templateFile)) {
             throw new Exception("AT Local template not found: " . $templateFile);
         }
@@ -94,9 +98,10 @@ class DocxGenerator {
     /**
      * Generate Authority to Travel DOCX (Official - National)
      */
-    public function generateATNational($data) {
+    public function generateATNational($data)
+    {
         $templateFile = $this->templateDir . DOCX_TEMPLATES['at_national'];
-        
+
         if (!file_exists($templateFile)) {
             throw new Exception("AT National template not found: " . $templateFile);
         }
@@ -107,9 +112,10 @@ class DocxGenerator {
     /**
      * Generate Authority to Travel DOCX (Personal)
      */
-    public function generateATPersonal($data) {
+    public function generateATPersonal($data)
+    {
         $templateFile = $this->templateDir . DOCX_TEMPLATES['at_personal'];
-        
+
         if (!file_exists($templateFile)) {
             throw new Exception("AT Personal template not found: " . $templateFile);
         }
@@ -120,7 +126,8 @@ class DocxGenerator {
     /**
      * Generate AT document based on category and scope
      */
-    public function generateAT($data) {
+    public function generateAT($data)
+    {
         if ($data['travel_category'] === 'personal') {
             return $this->generateATPersonal($data);
         }
@@ -133,13 +140,14 @@ class DocxGenerator {
     /**
      * Common AT document generation
      */
-    private function generateATDocument($templateFile, $data, $prefix) {
+    private function generateATDocument($templateFile, $data, $prefix)
+    {
         $templateProcessor = new TemplateProcessor($templateFile);
 
         // Helper function to ensure value is a string and not null
-        $getValue = function($key, $default = '') use ($data) {
+        $getValue = function ($key, $default = '') use ($data) {
             $value = $data[$key] ?? $default;
-            return $value !== null ? (string)$value : '';
+            return $value !== null ? (string) $value : '';
         };
 
         // Set all placeholders - ensure all values are strings
@@ -169,7 +177,7 @@ class DocxGenerator {
         // Note: Template must have placeholders in format ${key} (e.g., ${employee_name})
         foreach ($placeholders as $key => $value) {
             // Ensure value is always a string, never null
-            $stringValue = $value !== null ? (string)$value : '';
+            $stringValue = $value !== null ? (string) $value : '';
             // PHPWord TemplateProcessor will replace ${key} in template with the value
             $templateProcessor->setValue($key, $stringValue);
         }
@@ -185,7 +193,8 @@ class DocxGenerator {
     /**
      * Format date for display
      */
-    private function formatDate($date) {
+    private function formatDate($date)
+    {
         if (empty($date)) {
             return '';
         }
@@ -196,7 +205,8 @@ class DocxGenerator {
     /**
      * Format datetime for display
      */
-    private function formatDateTime($datetime) {
+    private function formatDateTime($datetime)
+    {
         if (empty($datetime)) {
             return '';
         }
@@ -207,7 +217,8 @@ class DocxGenerator {
     /**
      * Format time only for display
      */
-    private function formatTime($datetime) {
+    private function formatTime($datetime)
+    {
         if (empty($datetime)) {
             return '';
         }
@@ -218,7 +229,8 @@ class DocxGenerator {
     /**
      * Format date range for inclusive_dates
      */
-    private function formatDateRange($dateFrom, $dateTo) {
+    private function formatDateRange($dateFrom, $dateTo)
+    {
         if (empty($dateFrom) || empty($dateTo)) {
             return '';
         }
@@ -229,7 +241,8 @@ class DocxGenerator {
      * Build checkbox-like marks for travel type
      * Use placeholder ${travel_type_marks} in the Locator Slip template
      */
-    private function formatTravelTypeMarks($travelType) {
+    private function formatTravelTypeMarks($travelType)
+    {
         $labels = [
             'Official Business',
             'Official Time'
@@ -249,7 +262,8 @@ class DocxGenerator {
     /**
      * Return a single checkbox mark (☑/☐) for a specific travel type code
      */
-    private function getTravelMark($travelType, $target) {
+    private function getTravelMark($travelType, $target)
+    {
         return $travelType === $target ? '☑' : '☐';
     }
 
@@ -257,8 +271,9 @@ class DocxGenerator {
      * Normalize stored travel type values to current codes.
      * Old DB values like "official" should still mark Official Business.
      */
-    private function normalizeTravelType($travelType) {
-        $t = strtolower(trim((string)$travelType));
+    private function normalizeTravelType($travelType)
+    {
+        $t = strtolower(trim((string) $travelType));
 
         // Already normalized codes
         if ($t === 'official_business' || $t === 'official_time') {
@@ -280,7 +295,8 @@ class DocxGenerator {
     /**
      * Clean up old generated files (older than 24 hours)
      */
-    public function cleanupOldFiles($hoursOld = 24) {
+    public function cleanupOldFiles($hoursOld = 24)
+    {
         $files = glob($this->outputDir . '*.docx');
         $threshold = time() - ($hoursOld * 3600);
         $deleted = 0;
@@ -298,7 +314,8 @@ class DocxGenerator {
     /**
      * Get download URL for generated file
      */
-    public function getDownloadUrl($filePath) {
+    public function getDownloadUrl($filePath)
+    {
         $filename = basename($filePath);
         return BASE_URL . '/uploads/generated/' . $filename;
     }
@@ -309,17 +326,18 @@ class DocxGenerator {
      * @return string Path to the generated PDF file
      * @throws Exception if conversion fails
      */
-    public function convertToPDF($docxPath) {
+    public function convertToPDF($docxPath)
+    {
         if (!file_exists($docxPath)) {
             throw new Exception("DOCX file not found: " . $docxPath);
         }
 
         // Get LibreOffice path from config
         $libreOfficePath = defined('LIBREOFFICE_PATH') ? LIBREOFFICE_PATH : 'soffice';
-        
+
         // Prepare output directory
         $outputDir = $this->outputDir;
-        
+
         // Build the LibreOffice command
         // --headless: run without UI
         // --convert-to pdf: convert to PDF format
@@ -330,33 +348,34 @@ class DocxGenerator {
             rtrim($outputDir, '/\\'),
             $docxPath
         );
-        
+
         // Execute the conversion
         exec($command, $output, $returnCode);
-        
+
         if ($returnCode !== 0) {
             throw new Exception("LibreOffice conversion failed. Error: " . implode("\n", $output));
         }
-        
+
         // Determine the PDF filename (same name as DOCX but with .pdf extension)
         $pdfPath = $outputDir . basename($docxPath, '.docx') . '.pdf';
-        
+
         if (!file_exists($pdfPath)) {
             throw new Exception("PDF file was not created: " . $pdfPath);
         }
-        
+
         // Clean up the original DOCX file
         if (file_exists($docxPath)) {
             unlink($docxPath);
         }
-        
+
         return $pdfPath;
     }
 
     /**
      * Generate Locator Slip PDF
      */
-    public function generateLocatorSlipPDF($data) {
+    public function generateLocatorSlipPDF($data)
+    {
         $docxPath = $this->generateLocatorSlip($data);
         return $this->convertToPDF($docxPath);
     }
@@ -364,7 +383,8 @@ class DocxGenerator {
     /**
      * Generate Authority to Travel PDF
      */
-    public function generateATPDF($data) {
+    public function generateATPDF($data)
+    {
         $docxPath = $this->generateAT($data);
         return $this->convertToPDF($docxPath);
     }
@@ -372,7 +392,8 @@ class DocxGenerator {
     /**
      * Clean up old generated files (older than 24 hours) - now includes PDFs
      */
-    public function cleanupOldFilesPDF($hoursOld = 24) {
+    public function cleanupOldFilesPDF($hoursOld = 24)
+    {
         $files = array_merge(
             glob($this->outputDir . '*.docx'),
             glob($this->outputDir . '*.pdf')
@@ -388,5 +409,72 @@ class DocxGenerator {
         }
 
         return $deleted;
+    }
+
+    /**
+     * Generate Pass Slip DOCX
+     * Template has Employee Copy + HRMO Copy (side-by-side on same page)
+     * Placeholders use ${variable_name} format
+     */
+    public function generatePassSlip($data)
+    {
+        $templateFile = $this->templateDir . DOCX_TEMPLATES['pass_slip'];
+
+        if (!file_exists($templateFile)) {
+            throw new Exception("Pass Slip template not found: " . $templateFile);
+        }
+
+        $templateProcessor = new TemplateProcessor($templateFile);
+
+        // Format times
+        $intendedDeparture = !empty($data['idt'])
+            ? date('g:i A', strtotime($data['idt'])) : '';
+        $intendedArrival = !empty($data['iat'])
+            ? date('g:i A', strtotime($data['iat'])) : '';
+        $actualDeparture = !empty($data['actual_departure_time'])
+            ? date('g:i A', strtotime($data['actual_departure_time'])) : '';
+        $actualArrival = !empty($data['actual_arrival_time'])
+            ? date('g:i A', strtotime($data['actual_arrival_time'])) : '';
+
+        $placeholders = [
+            // Employee / Request info
+            'ps_control_no' => $data['ps_control_no'] ?? '',
+            'employee_name' => $data['employee_name'] ?? '',
+            'employee_position' => $data['employee_position'] ?? '',
+            'employee_office' => $data['employee_office'] ?? '',
+            'date' => $this->formatDate($data['date'] ?? ''),
+            'destination' => $data['destination'] ?? '',
+            'idt' => $intendedDeparture,
+            'iat' => $intendedArrival,
+            'purpose' => $data['purpose'] ?? '',
+            // Approval info
+            'approver_name' => $data['approver_name'] ?? '',
+            'approver_position' => $data['approver_position'] ?? '',
+            'approval_date' => $this->formatDate($data['approval_date'] ?? ''),
+            'approving_time' => $this->formatTime($data['approving_time'] ?? ''),
+            'requesting_employee_name' => $data['requesting_employee_name'] ?? $data['employee_name'] ?? '',
+            // Guard fields (blank if not yet filled)
+            'actual_departure_time' => $actualDeparture,
+            'actual_arrival_time' => $actualArrival,
+        ];
+
+        foreach ($placeholders as $key => $value) {
+            $templateProcessor->setValue($key, $value);
+        }
+
+        // Generate output filename
+        $outputFile = $this->outputDir . 'PS_' . ($data['ps_control_no'] ?? 'unknown') . '_' . time() . '.docx';
+        $templateProcessor->saveAs($outputFile);
+
+        return $outputFile;
+    }
+
+    /**
+     * Generate Pass Slip PDF
+     */
+    public function generatePassSlipPDF($data)
+    {
+        $docxPath = $this->generatePassSlip($data);
+        return $this->convertToPDF($docxPath);
     }
 }

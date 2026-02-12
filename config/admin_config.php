@@ -44,9 +44,18 @@ define('DIRECT_SDS_POSITIONS', ['Attorney III', 'Accountant III', 'Administrativ
 // Updated per Routing Directive - applies to local and international travel
 // Note: Records is a separate unit from Property and Supply.
 define('OSDS_UNITS', [
-    'OSDS', 'Personnel', 'Property and Supply', 'Records', 'Cash',
-    'Procurement', 'General Services', 'Legal', 'ICT',
-    'Accounting', 'Budget', 'Administrative'
+    'OSDS',
+    'Personnel',
+    'Property and Supply',
+    'Records',
+    'Cash',
+    'Procurement',
+    'General Services',
+    'Legal',
+    'ICT',
+    'Accounting',
+    'Budget',
+    'Administrative'
 ]);
 
 // Role to Office Mapping for Routing
@@ -90,9 +99,18 @@ define('UNIT_HEAD_OFFICES', [
     ROLE_CID_CHIEF => ['CID', 'IM', 'LRM', 'ALS', 'DIS'],
     ROLE_SGOD_CHIEF => ['SGOD', 'SMME', 'HRD', 'SMN', 'PR', 'DRRM', 'EF', 'SHN_DENTAL', 'SHN_MEDICAL', 'SHN'],
     ROLE_OSDS_CHIEF => [
-        'OSDS', 'Personnel', 'Property and Supply', 'Records', 'Cash',
-        'Procurement', 'General Services', 'Legal', 'ICT',
-        'Accounting', 'Budget', 'Administrative'
+        'OSDS',
+        'Personnel',
+        'Property and Supply',
+        'Records',
+        'Cash',
+        'Procurement',
+        'General Services',
+        'Legal',
+        'ICT',
+        'Accounting',
+        'Budget',
+        'Administrative'
     ]
 ]);
 
@@ -135,6 +153,12 @@ define('STATUS_CONFIG', [
         'color' => '#ef4444',
         'bg' => '#fee2e2',
         'icon' => '<i class="fas fa-times-circle"></i>'
+    ],
+    'cancelled' => [
+        'label' => 'Cancelled',
+        'color' => '#6b7280',
+        'bg' => '#f3f4f6',
+        'icon' => '<i class="fas fa-ban"></i>'
     ]
 ]);
 
@@ -159,6 +183,7 @@ define('AT_SCOPES', [
 // DOCX Templates
 define('DOCX_TEMPLATES', [
     'locator_slip' => 'Locator-Slip.docx',
+    'pass_slip' => 'Pass-Slip.docx',
     'at_local' => 'AUTHORITY-TO-TRAVEL-SAMPLE.docx',
     'at_national' => 'ANNEX-D-PERSONAL-TRAVEL-AUTHORITY_SAMPLE.docx',
     'at_personal' => 'ANNEX-D-PERSONAL-TRAVEL-AUTHORITY_SAMPLE.docx'
@@ -237,7 +262,8 @@ define('SDO_OFFICES', [
  * @param bool $activeOnly Return only active offices
  * @return array Array of offices with id, code, and name
  */
-function getSDOOfficesFromDB($activeOnly = true) {
+function getSDOOfficesFromDB($activeOnly = true)
+{
     try {
         $db = Database::getInstance();
         $sql = "SELECT id, office_code, office_name, office_type, is_osds_unit, approver_role_id 
@@ -269,7 +295,8 @@ function getSDOOfficesFromDB($activeOnly = true) {
  * @param int $officeId The office ID
  * @return array|null Office data or null
  */
-function getOfficeById($officeId) {
+function getOfficeById($officeId)
+{
     try {
         $db = Database::getInstance();
         $sql = "SELECT * FROM sdo_offices WHERE id = ?";
@@ -284,7 +311,8 @@ function getOfficeById($officeId) {
  * @param int $officeId The office ID
  * @return int Role ID of approving authority
  */
-function getApproverRoleByOfficeId($officeId) {
+function getApproverRoleByOfficeId($officeId)
+{
     try {
         $db = Database::getInstance();
         $sql = "SELECT approver_role_id FROM sdo_offices WHERE id = ? AND is_active = 1";
@@ -302,7 +330,8 @@ function getApproverRoleByOfficeId($officeId) {
  * Get all OSDS unit IDs from database
  * @return array Array of office IDs that are OSDS units
  */
-function getOSDSUnitIds() {
+function getOSDSUnitIds()
+{
     try {
         $db = Database::getInstance();
         $sql = "SELECT id FROM sdo_offices WHERE is_osds_unit = 1 AND is_active = 1";
@@ -327,7 +356,8 @@ define('TOP_OFFICE_CODES', [
  * Get the 3 options for the Office dropdown.
  * @return array [['code' => 'OSDS', 'name' => '...'], ...]
  */
-function getSDOOfficesForOfficeDropdown() {
+function getSDOOfficesForOfficeDropdown()
+{
     $out = [];
     foreach (TOP_OFFICE_CODES as $code => $name) {
         $out[] = ['code' => $code, 'name' => $name];
@@ -343,7 +373,8 @@ function getSDOOfficesForOfficeDropdown() {
  * @param string $officeCode One of 'OSDS', 'SGOD', 'CID'
  * @return array Array of ['id' => int, 'office_code' => string, 'office_name' => string]
  */
-function getSDOUnitsByOfficeCode($officeCode) {
+function getSDOUnitsByOfficeCode($officeCode)
+{
     try {
         $db = Database::getInstance();
         $code = strtoupper(trim($officeCode));
@@ -382,7 +413,8 @@ function getSDOUnitsByOfficeCode($officeCode) {
  * Get units by office code keyed for JS: { 'OSDS' => [...], 'SGOD' => [...], 'CID' => [...] }.
  * @return array
  */
-function getUnitsByOfficeForJs() {
+function getUnitsByOfficeForJs()
+{
     $out = [];
     foreach (array_keys(TOP_OFFICE_CODES) as $code) {
         $out[$code] = getSDOUnitsByOfficeCode($code);
@@ -397,7 +429,8 @@ function getUnitsByOfficeForJs() {
  * @param int|null $unitId sdo_offices.id (user's office_id)
  * @return string '' or 'OSDS'|'SGOD'|'CID'
  */
-function getOfficeCodeFromUnitId($unitId) {
+function getOfficeCodeFromUnitId($unitId)
+{
     if (!$unitId) {
         return '';
     }
@@ -422,7 +455,7 @@ function getOfficeCodeFromUnitId($unitId) {
     foreach (['SGOD', 'CID'] as $div) {
         $units = getSDOUnitsByOfficeCode($div);
         foreach ($units as $u) {
-            if ((int)($u['id'] ?? 0) === (int)$unitId) {
+            if ((int) ($u['id'] ?? 0) === (int) $unitId) {
                 return $div;
             }
         }
@@ -433,49 +466,56 @@ function getOfficeCodeFromUnitId($unitId) {
 /**
  * Helper function to check if user is a final approver (ASDS or Superadmin)
  */
-function isApprover($roleId) {
+function isApprover($roleId)
+{
     return in_array($roleId, [ROLE_SUPERADMIN, ROLE_ASDS, ROLE_SDS]);
 }
 
 /**
  * Helper function to check if user is a unit head (can recommend)
  */
-function isUnitHead($roleId) {
+function isUnitHead($roleId)
+{
     return in_array($roleId, UNIT_HEAD_ROLES);
 }
 
 /**
  * Helper function to check if user is regular employee
  */
-function isEmployee($roleId) {
+function isEmployee($roleId)
+{
     return $roleId == ROLE_USER;
 }
 
 /**
  * Helper function to determine recommending authority based on office
  */
-function getRecommendingRoleForOffice($office) {
+function getRecommendingRoleForOffice($office)
+{
     return ROLE_OFFICE_MAP[$office] ?? ROLE_OSDS_CHIEF; // Default to OSDS Chief
 }
 
 /**
  * Helper function to get recommending authority name by role
  */
-function getRecommendingAuthorityName($roleId) {
+function getRecommendingAuthorityName($roleId)
+{
     return RECOMMENDING_AUTHORITY_MAP[$roleId] ?? null;
 }
 
 /**
  * Helper function to get approving authority name by role
  */
-function getApprovingAuthorityName($roleId) {
+function getApprovingAuthorityName($roleId)
+{
     return APPROVING_AUTHORITY_MAP[$roleId] ?? 'ASDS';
 }
 
 /**
  * Helper function to get status badge HTML
  */
-function getStatusBadge($status) {
+function getStatusBadge($status)
+{
     $config = STATUS_CONFIG[$status] ?? STATUS_CONFIG['pending'];
     return '<span class="status-badge status-' . $status . '">' . $config['icon'] . ' ' . $config['label'] . '</span>';
 }
@@ -483,7 +523,8 @@ function getStatusBadge($status) {
 /**
  * Helper function to format tracking number display
  */
-function formatTrackingNo($trackingNo) {
+function formatTrackingNo($trackingNo)
+{
     return '<span class="tracking-no">' . htmlspecialchars($trackingNo) . '</span>';
 }
 
@@ -494,28 +535,29 @@ function formatTrackingNo($trackingNo) {
  * @param string|null $travelScope Optional travel scope filter (local, international, all)
  * @return int Role ID of the approving authority
  */
-function getApproverRoleFromDB($unitName, $travelScope = null) {
+function getApproverRoleFromDB($unitName, $travelScope = null)
+{
     try {
         $db = Database::getInstance();
         $sql = "SELECT approver_role_id FROM unit_routing_config 
                 WHERE unit_name = ? AND is_active = 1";
         $params = [$unitName];
-        
+
         if ($travelScope && $travelScope !== 'all') {
             $sql .= " AND (travel_scope = ? OR travel_scope = 'all')";
             $params[] = $travelScope;
         }
-        
+
         $sql .= " LIMIT 1";
         $result = $db->query($sql, $params)->fetch();
-        
+
         if ($result && isset($result['approver_role_id'])) {
             return (int) $result['approver_role_id'];
         }
     } catch (Exception $e) {
         // Fall back to static mapping on DB error
     }
-    
+
     // Fallback to static mapping
     return ROLE_OFFICE_MAP[$unitName] ?? ROLE_OSDS_CHIEF;
 }
@@ -525,19 +567,20 @@ function getApproverRoleFromDB($unitName, $travelScope = null) {
  * @param bool $activeOnly Whether to return only active configurations
  * @return array Array of routing configurations
  */
-function getAllUnitRoutingConfigs($activeOnly = true) {
+function getAllUnitRoutingConfigs($activeOnly = true)
+{
     try {
         $db = Database::getInstance();
         $sql = "SELECT urc.*, ar.role_name, ar.description as role_description 
                 FROM unit_routing_config urc
                 LEFT JOIN admin_roles ar ON urc.approver_role_id = ar.id";
-        
+
         if ($activeOnly) {
             $sql .= " WHERE urc.is_active = 1";
         }
-        
+
         $sql .= " ORDER BY urc.sort_order ASC, urc.unit_name ASC";
-        
+
         return $db->query($sql)->fetchAll();
     } catch (Exception $e) {
         return [];
@@ -549,13 +592,14 @@ function getAllUnitRoutingConfigs($activeOnly = true) {
  * @param int $roleId The approver role ID
  * @return array Array of unit names
  */
-function getUnitsByApproverRole($roleId) {
+function getUnitsByApproverRole($roleId)
+{
     try {
         $db = Database::getInstance();
         $sql = "SELECT unit_name FROM unit_routing_config 
                 WHERE approver_role_id = ? AND is_active = 1 
                 ORDER BY sort_order ASC";
-        
+
         $results = $db->query($sql, [$roleId])->fetchAll();
         return array_column($results, 'unit_name');
     } catch (Exception $e) {

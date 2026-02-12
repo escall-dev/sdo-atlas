@@ -6,10 +6,12 @@
 
 require_once __DIR__ . '/../config/database.php';
 
-class TrackingService {
+class TrackingService
+{
     private $db;
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->db = Database::getInstance();
     }
 
@@ -17,7 +19,8 @@ class TrackingService {
      * Generate next Locator Slip control number
      * Format: LS-YYYY-NNNNNN (e.g., LS-2026-000001)
      */
-    public function generateLSNumber() {
+    public function generateLSNumber()
+    {
         return $this->generateNumber('LS');
     }
 
@@ -25,48 +28,62 @@ class TrackingService {
      * Generate next Authority to Travel tracking number
      * Format: AT-YYYY-NNNNN (e.g., AT-2026-00001)
      */
-    public function generateATNumber($category = null, $scope = null) {
+    public function generateATNumber($category = null, $scope = null)
+    {
         return $this->generateNumber('AT');
     }
 
     /**
+     * Generate next Pass Slip control number
+     * Format: PS-YYYY-NNNNNN (e.g., PS-2026-000001)
+     */
+    public function generatePSNumber()
+    {
+        return $this->generateNumber('PS');
+    }
+
+    /**
      * Legacy method - redirects to unified AT number
      */
-    public function generateATLocalNumber() {
+    public function generateATLocalNumber()
+    {
         return $this->generateATNumber();
     }
 
     /**
      * Legacy method - redirects to unified AT number
      */
-    public function generateATNationalNumber() {
+    public function generateATNationalNumber()
+    {
         return $this->generateATNumber();
     }
 
     /**
      * Legacy method - redirects to unified AT number
      */
-    public function generateATPersonalNumber() {
+    public function generateATPersonalNumber()
+    {
         return $this->generateATNumber();
     }
 
     /**
      * Core number generation with atomic increment
      */
-    private function generateNumber($prefix) {
+    private function generateNumber($prefix)
+    {
         $year = date('Y');
         $conn = $this->db->getConnection();
-        
+
         try {
             $conn->beginTransaction();
-            
+
             // Lock the row for update
             $sql = "SELECT last_number FROM tracking_sequences 
                     WHERE prefix = ? AND year = ? FOR UPDATE";
             $stmt = $conn->prepare($sql);
             $stmt->execute([$prefix, $year]);
             $row = $stmt->fetch();
-            
+
             if ($row) {
                 // Increment existing sequence
                 $newNumber = $row['last_number'] + 1;
@@ -80,12 +97,12 @@ class TrackingService {
                               VALUES (?, ?, ?)";
                 $conn->prepare($insertSql)->execute([$prefix, $year, $newNumber]);
             }
-            
+
             $conn->commit();
-            
+
             // Format: PREFIX-YYYY-NNNNNN
             return sprintf("%s-%d-%06d", $prefix, $year, $newNumber);
-            
+
         } catch (Exception $e) {
             $conn->rollBack();
             throw $e;
@@ -95,7 +112,8 @@ class TrackingService {
     /**
      * Parse tracking number to get components
      */
-    public static function parseTrackingNumber($trackingNo) {
+    public static function parseTrackingNumber($trackingNo)
+    {
         // Handle different formats
         if (preg_match('/^(LS)-(\d{4})-(\d+)$/', $trackingNo, $matches)) {
             return [
@@ -105,11 +123,20 @@ class TrackingService {
                 'number' => intval($matches[3])
             ];
         }
-        
+
+        if (preg_match('/^(PS)-(\d{4})-(\d+)$/', $trackingNo, $matches)) {
+            return [
+                'type' => 'pass_slip',
+                'prefix' => $matches[1],
+                'year' => $matches[2],
+                'number' => intval($matches[3])
+            ];
+        }
+
         if (preg_match('/^(AT-LOCAL|AT-NATL|AT-PERS)-(\d{4})-(\d+)$/', $trackingNo, $matches)) {
             $scope = null;
             $category = 'official';
-            
+
             if ($matches[1] === 'AT-PERS') {
                 $category = 'personal';
             } elseif ($matches[1] === 'AT-NATL') {
@@ -117,7 +144,7 @@ class TrackingService {
             } else {
                 $scope = 'local';
             }
-            
+
             return [
                 'type' => 'authority_to_travel',
                 'prefix' => $matches[1],
@@ -127,14 +154,15 @@ class TrackingService {
                 'scope' => $scope
             ];
         }
-        
+
         return null;
     }
 
     /**
      * Validate tracking number format
      */
-    public static function isValidTrackingNumber($trackingNo) {
+    public static function isValidTrackingNumber($trackingNo)
+    {
         return self::parseTrackingNumber($trackingNo) !== null;
     }
 }
