@@ -193,13 +193,15 @@ define('DOCX_TEMPLATES', [
 define('TEMPLATE_DIR', __DIR__ . '/../reference-forms/doc-forms/');
 define('GENERATED_DIR', __DIR__ . '/../uploads/generated/');
 
-// LibreOffice path for PDF conversion
-// Common paths:
-// Windows: C:/Program Files/LibreOffice/program/soffice.exe
-// Windows (alternate): C:/Program Files (x86)/LibreOffice/program/soffice.exe
-// Linux: /usr/bin/soffice or /usr/bin/libreoffice
-// Mac: /Applications/LibreOffice.app/Contents/MacOS/soffice
-define('LIBREOFFICE_PATH', 'C:/Program Files/LibreOffice/program/soffice.exe');
+// Microsoft Word PDF Conversion (via PowerShell COM Automation)
+// Path to the PowerShell conversion script
+define('WORD_CONVERT_SCRIPT', __DIR__ . '/../scripts/convert-to-pdf.ps1');
+
+// Timeout in seconds for Word conversion process (default: 120)
+define('WORD_CONVERT_TIMEOUT', 120);
+
+// Directory for conversion error logs
+define('CONVERSION_LOG_DIR', __DIR__ . '/../logs/');
 
 // Permission definitions
 define('PERMISSIONS', [

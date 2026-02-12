@@ -321,7 +321,9 @@ class DocxGenerator
     }
 
     /**
-     * Convert DOCX to PDF using LibreOffice
+     * Convert DOCX to PDF using Microsoft Word COM Automation via PowerShell
+     * Requires: Windows + Microsoft Word installed + PowerShell access
+     *
      * @param string $docxPath Path to the DOCX file
      * @return string Path to the generated PDF file
      * @throws Exception if conversion fails
@@ -332,35 +334,117 @@ class DocxGenerator
             throw new Exception("DOCX file not found: " . $docxPath);
         }
 
-        // Get LibreOffice path from config
-        $libreOfficePath = defined('LIBREOFFICE_PATH') ? LIBREOFFICE_PATH : 'soffice';
+        // Get PowerShell script path from config
+        $scriptPath = defined('WORD_CONVERT_SCRIPT')
+            ? WORD_CONVERT_SCRIPT
+            : __DIR__ . '/../scripts/convert-to-pdf.ps1';
 
-        // Prepare output directory
-        $outputDir = $this->outputDir;
-
-        // Build the LibreOffice command
-        // --headless: run without UI
-        // --convert-to pdf: convert to PDF format
-        // --outdir: specify output directory
-        $command = sprintf(
-            '"%s" --headless --convert-to pdf --outdir "%s" "%s" 2>&1',
-            $libreOfficePath,
-            rtrim($outputDir, '/\\'),
-            $docxPath
-        );
-
-        // Execute the conversion
-        exec($command, $output, $returnCode);
-
-        if ($returnCode !== 0) {
-            throw new Exception("LibreOffice conversion failed. Error: " . implode("\n", $output));
+        if (!file_exists($scriptPath)) {
+            throw new Exception("Word conversion script not found: " . $scriptPath);
         }
 
-        // Determine the PDF filename (same name as DOCX but with .pdf extension)
-        $pdfPath = $outputDir . basename($docxPath, '.docx') . '.pdf';
+        // Determine the PDF output path
+        $pdfPath = $this->outputDir . basename($docxPath, '.docx') . '.pdf';
 
-        if (!file_exists($pdfPath)) {
-            throw new Exception("PDF file was not created: " . $pdfPath);
+        // Convert to absolute Windows paths for PowerShell
+        $absDocx = realpath($docxPath);
+        $absPdf = str_replace('/', '\\', $this->outputDir) . basename($docxPath, '.docx') . '.pdf';
+        $absScript = realpath($scriptPath);
+
+        if ($absDocx === false) {
+            throw new Exception("Cannot resolve DOCX path: " . $docxPath);
+        }
+
+        // Build the PowerShell command
+        $command = sprintf(
+            'powershell -ExecutionPolicy Bypass -NoProfile -NonInteractive -File "%s" -inputPath "%s" -outputPath "%s" 2>&1',
+            $absScript,
+            $absDocx,
+            $absPdf
+        );
+
+        // Get timeout from config (default 120 seconds)
+        $timeout = defined('WORD_CONVERT_TIMEOUT') ? WORD_CONVERT_TIMEOUT : 120;
+
+        // Execute the conversion with timeout handling
+        $output = [];
+        $returnCode = null;
+
+        // Use proc_open for timeout support
+        $descriptors = [
+            0 => ['pipe', 'r'],  // stdin
+            1 => ['pipe', 'w'],  // stdout
+            2 => ['pipe', 'w'],  // stderr
+        ];
+
+        $process = proc_open($command, $descriptors, $pipes);
+
+        if (!is_resource($process)) {
+            $this->logConversionError("Failed to start PowerShell process", $docxPath);
+            throw new Exception("Failed to start Word conversion process");
+        }
+
+        // Close stdin
+        fclose($pipes[0]);
+
+        // Set streams to non-blocking
+        stream_set_blocking($pipes[1], false);
+        stream_set_blocking($pipes[2], false);
+
+        $startTime = time();
+        $stdout = '';
+        $stderr = '';
+
+        // Wait for process to complete with timeout
+        while (true) {
+            $status = proc_get_status($process);
+
+            // Read available output
+            $stdout .= stream_get_contents($pipes[1]);
+            $stderr .= stream_get_contents($pipes[2]);
+
+            if (!$status['running']) {
+                $returnCode = $status['exitcode'];
+                break;
+            }
+
+            if ((time() - $startTime) > $timeout) {
+                // Kill the process on timeout
+                proc_terminate($process, 9);
+                fclose($pipes[1]);
+                fclose($pipes[2]);
+                proc_close($process);
+
+                $this->logConversionError("Conversion timed out after {$timeout} seconds", $docxPath);
+
+                // Clean up the DOCX file
+                if (file_exists($docxPath)) {
+                    unlink($docxPath);
+                }
+
+                throw new Exception("Word conversion timed out after {$timeout} seconds");
+            }
+
+            usleep(250000); // 250ms polling interval
+        }
+
+        // Read any remaining output
+        $stdout .= stream_get_contents($pipes[1]);
+        $stderr .= stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        proc_close($process);
+
+        // Check for errors
+        if ($returnCode !== 0) {
+            $errorMsg = trim($stderr ?: $stdout);
+            $this->logConversionError("Exit code {$returnCode}: {$errorMsg}", $docxPath);
+            throw new Exception("Word conversion failed (exit code {$returnCode}): " . $errorMsg);
+        }
+
+        if (!file_exists($absPdf)) {
+            $this->logConversionError("PDF file was not created", $docxPath);
+            throw new Exception("PDF file was not created: " . $absPdf);
         }
 
         // Clean up the original DOCX file
@@ -368,7 +452,30 @@ class DocxGenerator
             unlink($docxPath);
         }
 
-        return $pdfPath;
+        return $absPdf;
+    }
+
+    /**
+     * Log conversion errors for troubleshooting
+     *
+     * @param string $message Error message
+     * @param string $docxPath Path to the DOCX that failed
+     */
+    private function logConversionError($message, $docxPath)
+    {
+        $logDir = defined('CONVERSION_LOG_DIR')
+            ? CONVERSION_LOG_DIR
+            : __DIR__ . '/../logs/';
+
+        if (!is_dir($logDir)) {
+            mkdir($logDir, 0755, true);
+        }
+
+        $logFile = $logDir . 'pdf_conversion.log';
+        $timestamp = date('Y-m-d H:i:s');
+        $entry = "[{$timestamp}] ERROR: {$message} | File: {$docxPath}" . PHP_EOL;
+
+        file_put_contents($logFile, $entry, FILE_APPEND | LOCK_EX);
     }
 
     /**
