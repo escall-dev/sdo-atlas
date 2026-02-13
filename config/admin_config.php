@@ -193,15 +193,19 @@ define('DOCX_TEMPLATES', [
 define('TEMPLATE_DIR', __DIR__ . '/../reference-forms/doc-forms/');
 define('GENERATED_DIR', __DIR__ . '/../uploads/generated/');
 
-// Microsoft Word PDF Conversion (via PowerShell COM Automation)
+// LibreOffice PDF Conversion (via PowerShell + soffice --headless)
 // Path to the PowerShell conversion script
-define('WORD_CONVERT_SCRIPT', __DIR__ . '/../scripts/convert-to-pdf.ps1');
+define('PDF_CONVERT_SCRIPT', __DIR__ . '/../scripts/convert-to-pdf.ps1');
 
-// Timeout in seconds for Word conversion process (default: 120)
-define('WORD_CONVERT_TIMEOUT', 120);
+// Timeout in seconds for PDF conversion process (default: 120)
+define('PDF_CONVERT_TIMEOUT', 120);
 
 // Directory for conversion error logs
 define('CONVERSION_LOG_DIR', __DIR__ . '/../logs/');
+
+// Backward-compatible aliases for older references
+if (!defined('WORD_CONVERT_SCRIPT'))  define('WORD_CONVERT_SCRIPT', PDF_CONVERT_SCRIPT);
+if (!defined('WORD_CONVERT_TIMEOUT')) define('WORD_CONVERT_TIMEOUT', PDF_CONVERT_TIMEOUT);
 
 // Permission definitions
 define('PERMISSIONS', [

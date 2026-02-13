@@ -321,8 +321,8 @@ class DocxGenerator
     }
 
     /**
-     * Convert DOCX to PDF using Microsoft Word COM Automation via PowerShell
-     * Requires: Windows + Microsoft Word installed + PowerShell access
+     * Convert DOCX to PDF using LibreOffice headless mode via PowerShell
+     * Requires: Windows + LibreOffice installed + PowerShell access
      *
      * @param string $docxPath Path to the DOCX file
      * @return string Path to the generated PDF file
@@ -335,12 +335,14 @@ class DocxGenerator
         }
 
         // Get PowerShell script path from config
-        $scriptPath = defined('WORD_CONVERT_SCRIPT')
-            ? WORD_CONVERT_SCRIPT
-            : __DIR__ . '/../scripts/convert-to-pdf.ps1';
+        $scriptPath = defined('PDF_CONVERT_SCRIPT')
+            ? PDF_CONVERT_SCRIPT
+            : (defined('WORD_CONVERT_SCRIPT')
+                ? WORD_CONVERT_SCRIPT
+                : __DIR__ . '/../scripts/convert-to-pdf.ps1');
 
         if (!file_exists($scriptPath)) {
-            throw new Exception("Word conversion script not found: " . $scriptPath);
+            throw new Exception("PDF conversion script not found: " . $scriptPath);
         }
 
         // Determine the PDF output path
@@ -364,7 +366,9 @@ class DocxGenerator
         );
 
         // Get timeout from config (default 120 seconds)
-        $timeout = defined('WORD_CONVERT_TIMEOUT') ? WORD_CONVERT_TIMEOUT : 120;
+        $timeout = defined('PDF_CONVERT_TIMEOUT')
+            ? PDF_CONVERT_TIMEOUT
+            : (defined('WORD_CONVERT_TIMEOUT') ? WORD_CONVERT_TIMEOUT : 120);
 
         // Execute the conversion with timeout handling
         $output = [];
@@ -381,7 +385,7 @@ class DocxGenerator
 
         if (!is_resource($process)) {
             $this->logConversionError("Failed to start PowerShell process", $docxPath);
-            throw new Exception("Failed to start Word conversion process");
+            throw new Exception("Failed to start PDF conversion process");
         }
 
         // Close stdin
@@ -422,7 +426,7 @@ class DocxGenerator
                     unlink($docxPath);
                 }
 
-                throw new Exception("Word conversion timed out after {$timeout} seconds");
+                throw new Exception("PDF conversion timed out after {$timeout} seconds");
             }
 
             usleep(250000); // 250ms polling interval
@@ -439,7 +443,7 @@ class DocxGenerator
         if ($returnCode !== 0) {
             $errorMsg = trim($stderr ?: $stdout);
             $this->logConversionError("Exit code {$returnCode}: {$errorMsg}", $docxPath);
-            throw new Exception("Word conversion failed (exit code {$returnCode}): " . $errorMsg);
+            throw new Exception("PDF conversion failed (exit code {$returnCode}): " . $errorMsg);
         }
 
         if (!file_exists($absPdf)) {

@@ -1,5 +1,5 @@
 # convert-to-pdf.ps1
-# Converts DOCX to PDF using Microsoft Word COM Automation
+# Converts DOCX to PDF using LibreOffice headless mode
 # Usage: powershell -ExecutionPolicy Bypass -File convert-to-pdf.ps1 -inputPath "C:\path\to\file.docx" -outputPath "C:\path\to\output.pdf"
 
 param(
@@ -10,7 +10,7 @@ param(
     [string]$outputPath
 )
 
-# Resolve to absolute paths (Word COM requires full paths)
+# Resolve to absolute paths
 $inputPath  = [System.IO.Path]::GetFullPath($inputPath)
 $outputPath = [System.IO.Path]::GetFullPath($outputPath)
 
@@ -26,29 +26,37 @@ if (-not (Test-Path $outputDir)) {
     New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 }
 
-# ── Word COM requires a Desktop folder under the service-account profile ──
-# Without these folders, Documents.Open() silently returns $null when
-# Word is launched by Apache / IIS / SYSTEM / a service account.
-foreach ($profileDesktop in @(
-    "$env:SystemRoot\System32\config\systemprofile\Desktop",
-    "$env:SystemRoot\SysWOW64\config\systemprofile\Desktop"
-)) {
-    if (-not (Test-Path $profileDesktop)) {
-        try { New-Item -ItemType Directory -Path $profileDesktop -Force | Out-Null }
-        catch { }   # may fail without admin rights – that is OK if folder already exists
+# ── Locate LibreOffice soffice.com (console mode binary) ──
+$soffice = $null
+$searchPaths = @(
+    "C:\Program Files\LibreOffice\program\soffice.com",
+    "C:\Program Files (x86)\LibreOffice\program\soffice.com",
+    "C:\Program Files\LibreOffice\program\soffice.exe",
+    "C:\Program Files (x86)\LibreOffice\program\soffice.exe"
+)
+
+foreach ($candidate in $searchPaths) {
+    if (Test-Path $candidate) {
+        $soffice = $candidate
+        break
     }
 }
 
-# Constants
-$wdFormatPDF         = 17
-$wdDoNotSaveChanges  = 0
+if ($null -eq $soffice) {
+    Write-Error "LibreOffice not found. Searched: $($searchPaths -join ', ')"
+    exit 1
+}
 
-# Use a mutex to prevent multiple simultaneous Word instances
-$mutexName = "Global\SDOAtlasWordConversion"
+# ── Create a dedicated LibreOffice user profile for service-account usage ──
+$libreProfile = Join-Path $env:TEMP "sdo-atlas-libreoffice"
+if (-not (Test-Path $libreProfile)) {
+    New-Item -ItemType Directory -Path $libreProfile -Force | Out-Null
+}
+
+# ── Mutex: prevent concurrent LibreOffice instances ──
+$mutexName = "Global\SDOAtlasPDFConversion"
 $mutex     = $null
 $acquired  = $false
-$word      = $null
-$doc       = $null
 
 try {
     # Acquire mutex lock (wait up to 120 seconds)
@@ -60,45 +68,44 @@ try {
         exit 2
     }
 
-    # Instantiate Word COM object
-    $word = New-Object -ComObject Word.Application
-    $word.Visible = $false
-    $word.DisplayAlerts = 0            # wdAlertsNone
-    $word.AutomationSecurity = 3       # msoAutomationSecurityForceDisable – block all macros
+    # LibreOffice outputs PDF with the same base name as the input file
+    $inputBaseName  = [System.IO.Path]::GetFileNameWithoutExtension($inputPath)
+    $libreOutputPdf = Join-Path $outputDir "$inputBaseName.pdf"
 
-    # Open the DOCX file
-    #   FileName, ConfirmConversions, ReadOnly, AddToRecentFiles, PasswordDocument,
-    #   PasswordTemplate, Revert, WritePasswordDocument, WritePasswordTemplate,
-    #   Format, Encoding, Visible, OpenAndRepair
-    # Explicitly passing $false for dialog-triggering params to guarantee silence.
-    $doc = $word.Documents.Open(
-        $inputPath,                    # FileName
-        $false,                        # ConfirmConversions
-        $false,                        # ReadOnly
-        $false                         # AddToRecentFiles
+    # Build the argument list as a proper array
+    # Use file:/// URI with forward slashes for -env:UserInstallation
+    $profileUri = "file:///" + ($libreProfile -replace '\\', '/')
+    $argList = @(
+        "--headless",
+        "--norestore",
+        "--nolockcheck",
+        "-env:UserInstallation=$profileUri",
+        "--convert-to", "pdf",
+        "--outdir", $outputDir,
+        $inputPath
     )
 
-    if ($null -eq $doc) {
-        Write-Error "Word failed to open document: $inputPath"
+    # Run LibreOffice using direct invocation with & operator
+    # Capture all output (stdout + stderr merged via 2>&1)
+    $conversionOutput = & $soffice $argList 2>&1 | Out-String
+    $exitCode = $LASTEXITCODE
+
+    # LibreOffice may return 0 even on some failures, so always check the PDF
+    if (($null -ne $exitCode) -and ($exitCode -ne 0)) {
+        Write-Error "LibreOffice exited with code $exitCode : $conversionOutput"
         exit 3
     }
 
-    # Save as PDF (wdFormatPDF = 17)
-    # SaveAs2 is the modern API (Word 2010+). Fall back to SaveAs for older installs.
-    try {
-        $doc.SaveAs2($outputPath, $wdFormatPDF)
+    # If the LibreOffice output name differs from the expected output path, rename it
+    if ($libreOutputPdf -ne $outputPath) {
+        if (Test-Path $libreOutputPdf) {
+            Move-Item -Path $libreOutputPdf -Destination $outputPath -Force
+        }
     }
-    catch {
-        $doc.SaveAs($outputPath, $wdFormatPDF)
-    }
-
-    # Close the document without saving changes
-    $doc.Close($wdDoNotSaveChanges)
-    $doc = $null
 
     # Verify the PDF was created
     if (-not (Test-Path $outputPath)) {
-        Write-Error "PDF file was not created at: $outputPath"
+        Write-Error "PDF file was not created at: $outputPath -- LibreOffice output: $conversionOutput"
         exit 3
     }
 
@@ -110,19 +117,6 @@ catch {
     exit 4
 }
 finally {
-    # Clean up COM objects
-    if ($null -ne $doc) {
-        try { $doc.Close($wdDoNotSaveChanges) } catch { }
-    }
-
-    if ($null -ne $word) {
-        try { $word.Quit() } catch { }
-        try {
-            [System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) | Out-Null
-        }
-        catch { }
-    }
-
     # Release mutex
     if ($null -ne $mutex) {
         try {
@@ -131,8 +125,4 @@ finally {
         }
         catch { }
     }
-
-    # Force garbage collection to ensure COM cleanup
-    [System.GC]::Collect()
-    [System.GC]::WaitForPendingFinalizers()
 }
