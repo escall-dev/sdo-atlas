@@ -391,12 +391,11 @@ foreach ($routingConfigs as $config) {
 </div>
 
 <!-- Create/Edit Modal -->
-<div id="routingModal" class="modal" style="display: none;">
-    <div class="modal-overlay" onclick="closeModal()"></div>
-    <div class="modal-content">
+<div class="modal-overlay" id="routingModal">
+    <div class="modal modal-lg">
         <div class="modal-header">
             <h3 id="modalTitle"><i class="fas fa-plus"></i> Add Unit Routing</h3>
-            <button class="modal-close" onclick="closeModal()">&times;</button>
+            <button class="modal-close" type="button" onclick="closeModal()">&times;</button>
         </div>
         <form method="POST" id="routingForm">
             <input type="hidden" name="action" id="formAction" value="create">
@@ -480,12 +479,11 @@ foreach ($routingConfigs as $config) {
 </div>
 
 <!-- Delete Confirmation Modal -->
-<div id="deleteModal" class="modal" style="display: none;">
-    <div class="modal-overlay" onclick="closeDeleteModal()"></div>
-    <div class="modal-content modal-sm">
+<div class="modal-overlay" id="deleteModal">
+    <div class="modal">
         <div class="modal-header">
-            <h3><i class="fas fa-exclamation-triangle" style="color: #ef4444;"></i> Confirm Delete</h3>
-            <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+            <h3><i class="fas fa-exclamation-triangle" style="margin-right: 8px;"></i> Confirm Delete</h3>
+            <button class="modal-close" type="button" onclick="closeDeleteModal()">&times;</button>
         </div>
         <form method="POST" id="deleteForm">
             <input type="hidden" name="action" value="delete">
@@ -553,76 +551,6 @@ foreach ($routingConfigs as $config) {
     font-size: 0.8rem;
 }
 
-.modal {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.modal-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.6);
-}
-
-.modal-content {
-    position: relative;
-    background: var(--bg-card, #111d2e);
-    border-radius: 16px;
-    width: 90%;
-    max-width: 500px;
-    max-height: 90vh;
-    overflow-y: auto;
-    border: 1px solid var(--border, rgba(187, 225, 250, 0.1));
-}
-
-.modal-sm {
-    max-width: 400px;
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--border, rgba(187, 225, 250, 0.1));
-}
-
-.modal-header h3 {
-    margin: 0;
-    font-size: 1.1rem;
-    color: var(--text, #e8f1f8);
-}
-
-.modal-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    color: var(--text-muted, #7a9bb8);
-    cursor: pointer;
-}
-
-.modal-body {
-    padding: 24px;
-}
-
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    padding: 16px 24px;
-    border-top: 1px solid var(--border, rgba(187, 225, 250, 0.1));
-}
-
 .checkbox-label {
     display: flex;
     align-items: center;
@@ -678,7 +606,7 @@ function showCreateModal() {
     document.getElementById('sortOrder').value = '0';
     document.getElementById('isActive').checked = true;
     document.getElementById('submitBtn').innerHTML = '<i class="fas fa-save"></i> Save Configuration';
-    document.getElementById('routingModal').style.display = 'flex';
+    document.getElementById('routingModal').classList.add('active');
 }
 
 function editConfig(config) {
@@ -692,22 +620,43 @@ function editConfig(config) {
     document.getElementById('sortOrder').value = config.sort_order || 0;
     document.getElementById('isActive').checked = config.is_active == 1;
     document.getElementById('submitBtn').innerHTML = '<i class="fas fa-save"></i> Update Configuration';
-    document.getElementById('routingModal').style.display = 'flex';
+    document.getElementById('routingModal').classList.add('active');
 }
 
 function closeModal() {
-    document.getElementById('routingModal').style.display = 'none';
+    document.getElementById('routingModal').classList.remove('active');
 }
 
 function confirmDelete(id, unitName) {
     document.getElementById('deleteId').value = id;
     document.getElementById('deleteUnitName').textContent = unitName;
-    document.getElementById('deleteModal').style.display = 'flex';
+    document.getElementById('deleteModal').classList.add('active');
 }
 
 function closeDeleteModal() {
-    document.getElementById('deleteModal').style.display = 'none';
+    document.getElementById('deleteModal').classList.remove('active');
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    var routingModal = document.getElementById('routingModal');
+    var deleteModal = document.getElementById('deleteModal');
+
+    if (routingModal) {
+        routingModal.addEventListener('click', function(e) {
+            if (e.target === routingModal) {
+                closeModal();
+            }
+        });
+    }
+
+    if (deleteModal) {
+        deleteModal.addEventListener('click', function(e) {
+            if (e.target === deleteModal) {
+                closeDeleteModal();
+            }
+        });
+    }
+});
 
 // Close modal on Escape key
 document.addEventListener('keydown', function(e) {
