@@ -45,7 +45,7 @@ if ($type === 'at' || $type === 'all') {
     foreach ($atRequests as $at) {
         $at['request_type'] = 'at';
         $at['tracking_no'] = $at['at_tracking_no'];
-        $at['type_label'] = AuthorityToTravel::getTypeLabel($at['travel_category'], $at['travel_scope']);
+        $at['type_label'] = AuthorityToTravel::getTypeLabel($at['travel_category'], $at['travel_scope'], $at['travel_type'] ?? null);
         $requests[] = $at;
     }
 }

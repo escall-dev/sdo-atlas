@@ -84,7 +84,7 @@ if ($auth->isEmployee()) {
                         style="display: flex; flex-direction: column; align-items: center; padding: 24px; background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 12px; text-decoration: none; color: white; transition: transform 0.2s, box-shadow 0.2s;">
                         <i class="fas fa-plane" style="font-size: 2.5rem; margin-bottom: 12px;"></i>
                         <span style="font-weight: 600; font-size: 1rem;">Authority to Travel</span>
-                        <span style="font-size: 0.8rem; opacity: 0.8; margin-top: 4px;">Local or International</span>
+                        <span style="font-size: 0.8rem; opacity: 0.8; margin-top: 4px;">Within/Outside Region or International</span>
                     </a>
 
                     <!-- Pass Slip -->
@@ -334,7 +334,7 @@ if ($auth->isEmployee()) {
                                         </div>
                                         <div class="complaint-meta">
                                             <span
-                                                class="complaint-unit"><?php echo AuthorityToTravel::getTypeLabel($at['travel_category'], $at['travel_scope']); ?></span>
+                                                class="complaint-unit"><?php echo AuthorityToTravel::getTypeLabel($at['travel_category'], $at['travel_scope'], $at['travel_type'] ?? null); ?></span>
                                             <span
                                                 class="complaint-date"><?php echo date('M j', strtotime($at['created_at'])); ?></span>
                                         </div>
@@ -397,12 +397,12 @@ if ($auth->isEmployee()) {
                             <span class="quick-stat-value"><?php echo $myAtStats['this_week'] ?? 0; ?></span>
                         </div>
                         <div class="quick-stat-item">
-                            <span class="quick-stat-label">Local Official AT</span>
-                            <span class="quick-stat-value"><?php echo $myAtStats['local_official'] ?? 0; ?></span>
+                            <span class="quick-stat-label">Within Region AT</span>
+                            <span class="quick-stat-value"><?php echo $myAtStats['within_region_official'] ?? 0; ?></span>
                         </div>
                         <div class="quick-stat-item">
-                            <span class="quick-stat-label">National Official AT</span>
-                            <span class="quick-stat-value"><?php echo $myAtStats['national_official'] ?? 0; ?></span>
+                            <span class="quick-stat-label">Outside Region AT</span>
+                            <span class="quick-stat-value"><?php echo $myAtStats['outside_region_official'] ?? 0; ?></span>
                         </div>
                         <div class="quick-stat-item" style="border-bottom: none;">
                             <span class="quick-stat-label">Personal AT</span>

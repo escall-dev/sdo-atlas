@@ -36,9 +36,8 @@ define('UNIT_HEAD_ROLES', [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF]);
 // Office Chief Roles Array (Chiefs that route to ASDS for LS, to SDS for AT)
 define('OFFICE_CHIEF_ROLES', [ROLE_OSDS_CHIEF, ROLE_CID_CHIEF, ROLE_SGOD_CHIEF]);
 
-// Positions that route directly to SDS (skip recommending stage in AT, bypass OSDS Chief in LS)
-// These are matched case-insensitively against admin_users.employee_position
-define('DIRECT_SDS_POSITIONS', ['Attorney III', 'Accountant III', 'Administrative Officer V']);
+// DIRECT_SDS_POSITIONS removed per DepEd Order 043 s. 2022
+// Attorney III, Accountant III, AO V now follow standard chief -> SDS chain
 
 // OSDS Units (under AO V supervision)
 // Updated per Routing Directive - applies to local and international travel
@@ -118,7 +117,8 @@ define('UNIT_HEAD_OFFICES', [
 define('RECOMMENDING_AUTHORITY_MAP', [
     ROLE_CID_CHIEF => 'CID Chief',
     ROLE_SGOD_CHIEF => 'SGOD Chief',
-    ROLE_OSDS_CHIEF => 'AO V'
+    ROLE_OSDS_CHIEF => 'AO V',
+    ROLE_ASDS => 'ASDS'
 ]);
 
 // Approving Authority Names
@@ -174,10 +174,16 @@ define('AT_CATEGORIES', [
     'personal' => 'Personal'
 ]);
 
-// Travel scope for Authority to Travel (Official only)
+// Travel scope for Authority to Travel (per DepEd Order 043 s. 2022)
 define('AT_SCOPES', [
     'local' => 'Local',
-    'national' => 'National'
+    'international' => 'International'
+]);
+
+// Local travel types (within_region / outside_region)
+define('AT_LOCAL_TYPES', [
+    'within_region' => 'Within Region',
+    'outside_region' => 'Outside Region'
 ]);
 
 // DOCX Templates
@@ -185,7 +191,7 @@ define('DOCX_TEMPLATES', [
     'locator_slip' => 'Locator-Slip.docx',
     'pass_slip' => 'Pass-Slip.docx',
     'at_local' => 'AUTHORITY-TO-TRAVEL-SAMPLE.docx',
-    'at_national' => 'ANNEX-D-PERSONAL-TRAVEL-AUTHORITY_SAMPLE.docx',
+    'at_outside_region' => 'ANNEX-D-PERSONAL-TRAVEL-AUTHORITY_SAMPLE.docx',
     'at_personal' => 'ANNEX-D-PERSONAL-TRAVEL-AUTHORITY_SAMPLE.docx'
 ]);
 

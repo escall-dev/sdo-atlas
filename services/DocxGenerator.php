@@ -96,17 +96,25 @@ class DocxGenerator
     }
 
     /**
-     * Generate Authority to Travel DOCX (Official - National)
+     * Generate Authority to Travel DOCX (Official - Outside Region / International)
+     */
+    public function generateATOutsideRegion($data)
+    {
+        $templateFile = $this->templateDir . DOCX_TEMPLATES['at_outside_region'];
+
+        if (!file_exists($templateFile)) {
+            throw new Exception("AT Outside Region template not found: " . $templateFile);
+        }
+
+        return $this->generateATDocument($templateFile, $data, 'AT-OR');
+    }
+
+    /**
+     * Legacy method - redirects to outside region generator
      */
     public function generateATNational($data)
     {
-        $templateFile = $this->templateDir . DOCX_TEMPLATES['at_national'];
-
-        if (!file_exists($templateFile)) {
-            throw new Exception("AT National template not found: " . $templateFile);
-        }
-
-        return $this->generateATDocument($templateFile, $data, 'AT-NATL');
+        return $this->generateATOutsideRegion($data);
     }
 
     /**
@@ -124,15 +132,17 @@ class DocxGenerator
     }
 
     /**
-     * Generate AT document based on category and scope
+     * Generate AT document based on category, scope, and travel type
+     * Outside region and international use the annex-D template
      */
     public function generateAT($data)
     {
         if ($data['travel_category'] === 'personal') {
             return $this->generateATPersonal($data);
         }
-        if ($data['travel_scope'] === 'national') {
-            return $this->generateATNational($data);
+        $travelType = $data['travel_type'] ?? null;
+        if ($data['travel_scope'] === 'international' || $travelType === 'outside_region') {
+            return $this->generateATOutsideRegion($data);
         }
         return $this->generateATLocal($data);
     }

@@ -133,16 +133,17 @@ class TrackingService
             ];
         }
 
-        if (preg_match('/^(AT-LOCAL|AT-NATL|AT-PERS)-(\d{4})-(\d+)$/', $trackingNo, $matches)) {
-            $scope = null;
+        if (preg_match('/^(AT-LOCAL|AT-NATL|AT-OR|AT-PERS|AT)-(\d{4})-(\d+)$/', $trackingNo, $matches)) {
+            $scope = 'local';
             $category = 'official';
+            $travelType = 'within_region';
 
             if ($matches[1] === 'AT-PERS') {
                 $category = 'personal';
-            } elseif ($matches[1] === 'AT-NATL') {
-                $scope = 'national';
-            } else {
-                $scope = 'local';
+                $scope = null;
+                $travelType = null;
+            } elseif ($matches[1] === 'AT-NATL' || $matches[1] === 'AT-OR') {
+                $travelType = 'outside_region';
             }
 
             return [
@@ -151,7 +152,8 @@ class TrackingService
                 'year' => $matches[2],
                 'number' => intval($matches[3]),
                 'category' => $category,
-                'scope' => $scope
+                'scope' => $scope,
+                'travel_type' => $travelType
             ];
         }
 
