@@ -45,8 +45,9 @@ class AuthorityToTravel {
             ]);
         }
 
-        // === PERSONAL or INTERNATIONAL: single-level approval, no recommender ===
-        if ($isPersonalOrInternational) {
+        // === INTERNATIONAL (personal or official): single-level approval, no recommender ===
+        // Below Division Chief: Division Chief is the final approver directly
+        if ($travelScope === 'international') {
             if ($isASDS) {
                 return array_merge($base, [
                     'current_approver_role' => 'SDS',
@@ -63,13 +64,42 @@ class AuthorityToTravel {
                     'forwarded_to_ro' => 0,
                 ]);
             }
-            // Below Division Chief — final approver is their Division Chief
+            // Below Division Chief — Division Chief is the final approver
             $recommenderRole = $this->getRecommenderRoleForOffice($requesterOfficeId, $requesterOffice, $travelScope);
             $recommenderRoleName = $this->getRoleNameById($recommenderRole);
             return array_merge($base, [
                 'current_approver_role' => $recommenderRoleName,
                 'routing_stage' => 'final',
                 'final_approver_role' => $recommenderRoleName,
+                'forwarded_to_ro' => 0,
+            ]);
+        }
+
+        // === PERSONAL (local outside region): Division Chief recommends -> SDS final ===
+        if ($travelCategory === 'personal') {
+            if ($isASDS) {
+                return array_merge($base, [
+                    'current_approver_role' => 'SDS',
+                    'routing_stage' => 'final',
+                    'final_approver_role' => 'SDS',
+                    'forwarded_to_ro' => 0,
+                ]);
+            }
+            if ($isDivChief) {
+                return array_merge($base, [
+                    'current_approver_role' => 'SDS',
+                    'routing_stage' => 'final',
+                    'final_approver_role' => 'SDS',
+                    'forwarded_to_ro' => 0,
+                ]);
+            }
+            // Below Division Chief — Division Chief recommends -> SDS final approves
+            $recommenderRole = $this->getRecommenderRoleForOffice($requesterOfficeId, $requesterOffice, $travelScope);
+            $recommenderRoleName = $this->getRoleNameById($recommenderRole);
+            return array_merge($base, [
+                'current_approver_role' => $recommenderRoleName,
+                'routing_stage' => 'recommending',
+                'final_approver_role' => 'SDS',
                 'forwarded_to_ro' => 0,
             ]);
         }
@@ -1059,9 +1089,14 @@ class AuthorityToTravel {
             return 'recommend';
         }
 
-        // Unit heads can RECOMMEND (not approve) requests from regular users at recommending stage
+        // Unit heads can RECOMMEND requests from regular users at recommending stage
         if (in_array($userRoleId, UNIT_HEAD_ROLES) && $at['routing_stage'] === 'recommending') {
             return 'recommend';
+        }
+
+        // Unit heads can APPROVE requests at final stage (e.g. international travel for below-chief staff)
+        if (in_array($userRoleId, UNIT_HEAD_ROLES) && $at['routing_stage'] === 'final') {
+            return 'approve';
         }
 
         return null;

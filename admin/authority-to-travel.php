@@ -4,6 +4,7 @@
  * SDO ATLAS - View, create, and approve AT requests
  * With Unit-Based and Role-Based Routing Logic
  */
+ob_start(); // Buffer output to allow header() redirects after HTML output
 
 require_once __DIR__ . '/../includes/header.php';
 require_once __DIR__ . '/../models/AuthorityToTravel.php';
@@ -16,7 +17,7 @@ $action = $_GET['action'] ?? '';
 $viewId = $_GET['view'] ?? '';
 $editId = $_GET['edit'] ?? '';
 $type = $_GET['type'] ?? 'local'; // local, outside_region, international, personal
-$message = '';
+$message = $_GET['msg'] ?? '';
 $error = '';
 
 // Get current user info for routing
@@ -89,19 +90,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // SDS filing: auto-forwarded to RO
                 if ($auth->isSDS()) {
-                    $message = 'Authority to Travel filed and forwarded to Regional Office for RD approval. Tracking Number: ' . $trackingNo;
+                    $msg = 'Authority to Travel filed and forwarded to Regional Office for RD approval. Tracking Number: ' . $trackingNo;
                 } else {
-                    $message = 'Authority to Travel filed successfully! Tracking Number: ' . $trackingNo;
+                    $msg = 'Authority to Travel filed successfully! Tracking Number: ' . $trackingNo;
                 }
-                $action = '';
+                header('Location: ' . navUrl('/authority-to-travel.php') . '&msg=' . urlencode($msg));
+                exit;
             }
         } catch (Exception $e) {
             $error = 'Failed to create Authority to Travel: ' . $e->getMessage();
         }
     }
     
-    // Handle approve action (by ASDS or SDS at final stage)
-    if ($postAction === 'approve' && ($auth->isASDS() || $auth->isSDS())) {
+    // Handle approve action (by Unit Heads, ASDS, or SDS at final stage)
+    if ($postAction === 'approve' && ($auth->isUnitHead() || $auth->isASDS() || $auth->isSDS())) {
         $id = $_POST['id'];
         $at = $atModel->getById($id);
         
@@ -117,7 +119,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Log with OIC prefix if applicable
                 $actionType = $isOIC ? 'OIC-APPROVAL' : 'APPROVE_AT';
                 $auth->logActivity($actionType, 'AT', $id, 'Approved AT: ' . $at['at_tracking_no']);
-                $message = 'Authority to Travel approved successfully!';
+                header('Location: ' . navUrl('/authority-to-travel.php?view=' . $id) . '&msg=' . urlencode('Authority to Travel approved successfully!'));
+                exit;
             } else {
                 $error = 'You do not have permission to approve this request.';
             }
@@ -145,10 +148,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Check if AT was forwarded to RO after recommendation
                 $updatedAt = $atModel->getById($id);
                 if (!empty($updatedAt['forwarded_to_ro'])) {
-                    $message = 'Authority to Travel recommended and forwarded to Regional Office for RD approval.';
+                    $msg = 'Authority to Travel recommended and forwarded to Regional Office for RD approval.';
                 } else {
-                    $message = 'Authority to Travel recommended for approval.';
+                    $msg = 'Authority to Travel recommended for approval.';
                 }
+                header('Location: ' . navUrl('/authority-to-travel.php?view=' . $id) . '&msg=' . urlencode($msg));
+                exit;
             } else {
                 $error = 'You do not have permission to recommend this request.';
             }
@@ -188,7 +193,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $atModel->update($id, $data, $auth->getUserId());
                 $auth->logActivity('UPDATE_AT', 'AT', $id, 'Updated AT: ' . $at['at_tracking_no']);
-                $message = 'Authority to Travel updated successfully!';
+                header('Location: ' . navUrl('/authority-to-travel.php?view=' . $id) . '&msg=' . urlencode('Authority to Travel updated successfully!'));
+                exit;
             }
         } catch (Exception $e) {
             $error = 'Failed to update Authority to Travel: ' . $e->getMessage();
@@ -204,7 +210,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $atModel->executiveApprove($id, $auth->getUserId(), $currentUser['full_name']);
                 $auth->logActivity('APPROVE_AT', 'AT', $id, 'Executive approved AT: ' . $at['at_tracking_no']);
-                $message = 'Authority to Travel approved by SDS (Executive Override)!';
+                header('Location: ' . navUrl('/authority-to-travel.php?view=' . $id) . '&msg=' . urlencode('Authority to Travel approved by SDS (Executive Override)!'));
+                exit;
             } catch (Exception $e) {
                 $error = $e->getMessage();
             }
@@ -222,7 +229,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($atModel->canUserActOn($at, $currentRoleId, $currentRoleName)) {
                 $atModel->reject($id, $auth->getUserId(), $reason);
                 $auth->logActivity('REJECT_AT', 'AT', $id, 'Rejected AT: ' . $at['at_tracking_no']);
-                $message = 'Authority to Travel rejected.';
+                header('Location: ' . navUrl('/authority-to-travel.php?view=' . $id) . '&msg=' . urlencode('Authority to Travel rejected.'));
+                exit;
             } else {
                 $error = 'You do not have permission to reject this request.';
             }

@@ -16,7 +16,7 @@ The current routing engine is a flat 2-tier model (unit chief recommends → SDS
 | ASDS recommending | Yes — ASDS gains `recommend` action for Division Chief local official travel. |
 | PSDS | Regular users (`role_id=6`) identified by `employee_position`. Fall under CID/Division Chief routing. |
 | Forwarded status | Use `status='approved'` with a `forwarded_to_ro` flag column (not a new status ENUM value). |
-| Div Chief personal/international | Final approver = SDS, no recommending step. |
+| Div Chief personal/international | Final approver = SDS, no recommending step. Below Division Chief: Division Chief recommends → SDS final approves. |
 
 ---
 
@@ -57,7 +57,7 @@ Single-level approval only. No recommending approver.
 | SDS | NULL | RD | 1 | completed |
 | ASDS | NULL | SDS | 0 | final |
 | Division Chief (UNIT_HEAD_ROLES) | NULL | SDS | 0 | final |
-| Below Division Chief | NULL | Division Chief | 0 | final |
+| Below Division Chief | Division Chief | SDS | 0 | recommending |
 
 #### If `travel_scope` = local (Within Region) — Official:
 
