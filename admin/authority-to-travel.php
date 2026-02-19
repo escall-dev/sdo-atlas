@@ -88,9 +88,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 $auth->logActivity('ROUTING_DECISION', 'AT', $id, $routingContext);
                 
-                // SDS filing: auto-forwarded to RO
-                if ($auth->isSDS()) {
-                    $msg = 'Authority to Travel filed and forwarded to Regional Office for RD approval. Tracking Number: ' . $trackingNo;
+                if (!empty($createdAt['forwarded_to_ro'])) {
+                    $msg = 'Authority to Travel filed and forwarded to Regional Office. Tracking Number: ' . $trackingNo;
                 } else {
                     $msg = 'Authority to Travel filed successfully! Tracking Number: ' . $trackingNo;
                 }
@@ -148,7 +147,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Check if AT was forwarded to RO after recommendation
                 $updatedAt = $atModel->getById($id);
                 if (!empty($updatedAt['forwarded_to_ro'])) {
-                    $msg = 'Authority to Travel recommended and forwarded to Regional Office for RD approval.';
+                    $finalRole = $updatedAt['final_approver_role'] ?? 'RD';
+                    $externalLabel = ($finalRole === 'DEPED_SEC') ? 'DepEd Secretary' : 'RD';
+                    $msg = 'Authority to Travel recommended and forwarded to Regional Office for ' . $externalLabel . ' approval.';
                 } else {
                     $msg = 'Authority to Travel recommended for approval.';
                 }
@@ -615,6 +616,9 @@ if ($type === 'outside_region') {
                     <label>RO Forwarding</label>
                     <span class="status-badge" style="background: #e0e7ff; color: #4338ca;">
                         <i class="fas fa-share"></i> Forwarded to Regional Office
+                        <?php if (($viewData['final_approver_role'] ?? '') === 'DEPED_SEC'): ?>
+                            (for DepEd Secretary approval)
+                        <?php endif; ?>
                     </span>
                 </div>
                 <?php if ($viewData['forwarded_to_ro_date']): ?>

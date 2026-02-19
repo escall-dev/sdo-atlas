@@ -118,14 +118,18 @@ define('RECOMMENDING_AUTHORITY_MAP', [
     ROLE_CID_CHIEF => 'CID Chief',
     ROLE_SGOD_CHIEF => 'SGOD Chief',
     ROLE_OSDS_CHIEF => 'AO V',
-    ROLE_ASDS => 'ASDS'
+    ROLE_ASDS => 'ASDS',
+    ROLE_SDS => 'SDS'
 ]);
 
 // Approving Authority Names
 define('APPROVING_AUTHORITY_MAP', [
     ROLE_ASDS => 'ASDS',
     ROLE_SUPERADMIN => 'Superadmin',
-    ROLE_SDS => 'SDS'
+    ROLE_SDS => 'SDS',
+    ROLE_CID_CHIEF => 'CID Chief',
+    ROLE_SGOD_CHIEF => 'SGOD Chief',
+    ROLE_OSDS_CHIEF => 'AO V'
 ]);
 
 // Status configuration for requests

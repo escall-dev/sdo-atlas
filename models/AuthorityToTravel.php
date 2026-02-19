@@ -35,8 +35,18 @@ class AuthorityToTravel {
         $isPersonalOrInternational = ($travelCategory === 'personal' || $travelScope === 'international');
         $isOutsideRegion = ($travelType === 'outside_region');
 
-        // --- SDS filing own AT: always forwarded to RO (RD has no account) ---
+        // --- SDS filing own AT ---
         if ($isSDS) {
+            if ($travelCategory === 'official' && $travelScope === 'local' && !$isOutsideRegion) {
+                // SDS within-region local official: self-approved, no RD needed
+                return array_merge($base, [
+                    'current_approver_role' => null,
+                    'routing_stage' => 'completed',
+                    'final_approver_role' => 'SDS',
+                    'forwarded_to_ro' => 0,
+                ]);
+            }
+            // SDS personal / outside-region / international: forwarded to RO for RD
             return array_merge($base, [
                 'current_approver_role' => null,
                 'routing_stage' => 'completed',
@@ -45,37 +55,36 @@ class AuthorityToTravel {
             ]);
         }
 
-        // === INTERNATIONAL (personal or official): single-level approval, no recommender ===
-        // Below Division Chief: Division Chief is the final approver directly
-        if ($travelScope === 'international') {
+        // === INTERNATIONAL OFFICIAL: RD/SDS recommends -> DEPED SEC final (both external) ===
+        if ($travelScope === 'international' && $travelCategory === 'official') {
             if ($isASDS) {
+                // ASDS: RD recommends, DEPED SEC final — both external, auto-forward to RO
                 return array_merge($base, [
-                    'current_approver_role' => 'SDS',
-                    'routing_stage' => 'final',
-                    'final_approver_role' => 'SDS',
-                    'forwarded_to_ro' => 0,
+                    'current_approver_role' => null,
+                    'routing_stage' => 'completed',
+                    'final_approver_role' => 'DEPED_SEC',
+                    'forwarded_to_ro' => 1,
                 ]);
             }
             if ($isDivChief) {
+                // Div Chief: SDS recommends -> then forwarded to RO (DEPED SEC final)
                 return array_merge($base, [
                     'current_approver_role' => 'SDS',
-                    'routing_stage' => 'final',
-                    'final_approver_role' => 'SDS',
+                    'routing_stage' => 'recommending',
+                    'final_approver_role' => 'DEPED_SEC',
                     'forwarded_to_ro' => 0,
                 ]);
             }
-            // Below Division Chief — Division Chief is the final approver
-            $recommenderRole = $this->getRecommenderRoleForOffice($requesterOfficeId, $requesterOffice, $travelScope);
-            $recommenderRoleName = $this->getRoleNameById($recommenderRole);
+            // Below Division Chief: SDS recommends -> then forwarded to RO (DEPED SEC final)
             return array_merge($base, [
-                'current_approver_role' => $recommenderRoleName,
-                'routing_stage' => 'final',
-                'final_approver_role' => $recommenderRoleName,
+                'current_approver_role' => 'SDS',
+                'routing_stage' => 'recommending',
+                'final_approver_role' => 'DEPED_SEC',
                 'forwarded_to_ro' => 0,
             ]);
         }
 
-        // === PERSONAL (local outside region): Division Chief recommends -> SDS final ===
+        // === PERSONAL (local & international): single approving authority, no recommending step ===
         if ($travelCategory === 'personal') {
             if ($isASDS) {
                 return array_merge($base, [
@@ -93,13 +102,13 @@ class AuthorityToTravel {
                     'forwarded_to_ro' => 0,
                 ]);
             }
-            // Below Division Chief — Division Chief recommends -> SDS final approves
-            $recommenderRole = $this->getRecommenderRoleForOffice($requesterOfficeId, $requesterOffice, $travelScope);
-            $recommenderRoleName = $this->getRoleNameById($recommenderRole);
+            // Below Division Chief — Division Chief is the sole approving authority
+            $approverRole = $this->getRecommenderRoleForOffice($requesterOfficeId, $requesterOffice, $travelScope);
+            $approverRoleName = $this->getRoleNameById($approverRole);
             return array_merge($base, [
-                'current_approver_role' => $recommenderRoleName,
-                'routing_stage' => 'recommending',
-                'final_approver_role' => 'SDS',
+                'current_approver_role' => $approverRoleName,
+                'routing_stage' => 'final',
+                'final_approver_role' => $approverRoleName,
                 'forwarded_to_ro' => 0,
             ]);
         }
@@ -398,11 +407,10 @@ class AuthorityToTravel {
         $forwardedToRo = $routing['forwarded_to_ro'] ?? 0;
         $forwardedToRoDate = null;
 
-        // SDS self-filing: auto-approved and forwarded to RO
-        if ($requesterRoleId == ROLE_SDS) {
+        // Auto-approve when routing is already completed (SDS self-filing, ASDS intl official, etc.)
+        if ($routing['routing_stage'] === 'completed') {
             $status = 'approved';
-            $forwardedToRo = 1;
-            $forwardedToRoDate = date('Y-m-d');
+            $forwardedToRoDate = $forwardedToRo ? date('Y-m-d') : null;
         }
         
         // Get effective approver (may be OIC) for recommending stage
@@ -841,18 +849,19 @@ class AuthorityToTravel {
     }
 
     /**
-     * Recommend an AT request (by Unit Head or ASDS)
+     * Recommend an AT request (by Unit Head, ASDS, or SDS)
      * Uses stored final_approver_role to determine next step
-     * If final_approver_role is RD, auto-forwards to RO after recommendation
+     * If final approver is external (RD or DEPED_SEC), auto-forwards to RO
      */
     public function recommend($id, $recommenderId, $recommenderName, $recommenderRoleId) {
         $at = $this->getById($id);
         $recommenderTitle = getRecommendingAuthorityName($recommenderRoleId);
         $recommenderFullDisplay = $recommenderName . ', ' . $recommenderTitle;
         $finalApproverRole = $at['final_approver_role'] ?? 'SDS';
+        $isExternalFinal = in_array($finalApproverRole, ['RD', 'DEPED_SEC']);
 
-        if ($finalApproverRole === 'RD') {
-            // After recommendation, auto-forward to RO (RD has no account)
+        if ($isExternalFinal) {
+            // Final approver is external — auto-forward to RO after recommendation
             $sql = "UPDATE authority_to_travel SET 
                     status = 'approved',
                     recommended_by = ?,
@@ -863,23 +872,19 @@ class AuthorityToTravel {
                     forwarded_to_ro = 1,
                     forwarded_to_ro_date = CURDATE()
                     WHERE id = ? AND routing_stage = 'recommending'";
-        } else {
-            // Route to the designated final approver
-            $sql = "UPDATE authority_to_travel SET 
-                    status = 'recommended',
-                    recommended_by = ?,
-                    recommending_authority_name = ?,
-                    recommending_date = CURDATE(),
-                    current_approver_role = ?,
-                    routing_stage = 'final'
-                    WHERE id = ? AND routing_stage = 'recommending'";
+            return $this->db->query($sql, [$recommenderId, $recommenderFullDisplay, $id]);
         }
 
-        if ($finalApproverRole === 'RD') {
-            return $this->db->query($sql, [$recommenderId, $recommenderFullDisplay, $id]);
-        } else {
-            return $this->db->query($sql, [$recommenderId, $recommenderFullDisplay, $finalApproverRole, $id]);
-        }
+        // Route to the designated in-system final approver
+        $sql = "UPDATE authority_to_travel SET 
+                status = 'recommended',
+                recommended_by = ?,
+                recommending_authority_name = ?,
+                recommending_date = CURDATE(),
+                current_approver_role = ?,
+                routing_stage = 'final'
+                WHERE id = ? AND routing_stage = 'recommending'";
+        return $this->db->query($sql, [$recommenderId, $recommenderFullDisplay, $finalApproverRole, $id]);
     }
 
     /**
@@ -975,9 +980,10 @@ class AuthorityToTravel {
     public function executiveApprove($id, $approverId, $approverName) {
         $at = $this->getById($id);
 
-        // Block executive override for ATs that should go to RD
-        if (!empty($at['forwarded_to_ro']) || ($at['final_approver_role'] ?? '') === 'RD') {
-            throw new \Exception('This AT is designated for Regional Director approval and cannot be executive-approved by SDS.');
+        // Block executive override for ATs designated for external approvers (RD or DEPED SEC)
+        $finalRole = $at['final_approver_role'] ?? '';
+        if (!empty($at['forwarded_to_ro']) || in_array($finalRole, ['RD', 'DEPED_SEC'])) {
+            throw new \Exception('This AT is designated for external approval (RD/DepEd Secretary) and cannot be executive-approved by SDS.');
         }
         
         // Use actual approver name with title
@@ -1094,7 +1100,7 @@ class AuthorityToTravel {
             return 'recommend';
         }
 
-        // Unit heads can APPROVE requests at final stage (e.g. international travel for below-chief staff)
+        // Unit heads can APPROVE requests at final stage when designated as final approver
         if (in_array($userRoleId, UNIT_HEAD_ROLES) && $at['routing_stage'] === 'final') {
             return 'approve';
         }
